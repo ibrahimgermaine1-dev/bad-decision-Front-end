@@ -18,7 +18,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import { useAppStore, type AppView } from '@/stores/app-store'
-import { SignIn, SignUp, useClerk, useSignUp } from '@clerk/nextjs'
+import { SignIn, SignUp } from '@clerk/nextjs'
 import { Navigation } from '@/components/navigation'
 import { Footer } from '@/components/footer'
 import { getFingerprint, checkDeviceFingerprint, type FingerprintResult } from '@/lib/fingerprint'
@@ -32,29 +32,14 @@ export function AuthPage() {
   const { setView } = useAppStore()
   const view = useAppStore((s) => s.view)
   const isSignUp = view === 'signup'
-  const { isLoaded } = useClerk()
 
   // Fingerprint state (only used for sign-up)
   const [fpStatus, setFpStatus] = useState<FingerprintStatus>('idle')
   const [fpResult, setFpResult] = useState<FingerprintResult | null>(null)
   const [fpMessage, setFpMessage] = useState('')
 
-  // Determine the Clerk publishable key
+  // Check if Clerk publishable key is set
   const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-
-  // Clerk loading timeout — if Clerk doesn't load in 6s, fall back to demo
-  const [clerkTimedOut, setClerkTimedOut] = useState(false)
-  useEffect(() => {
-    if (hasClerk && !isLoaded) {
-      const timer = setTimeout(() => setClerkTimedOut(true), 6000)
-      return () => clearTimeout(timer)
-    }
-    if (isLoaded) setClerkTimedOut(false)
-  }, [hasClerk, isLoaded])
-
-  // If Clerk timed out, treat it as not configured
-  const clerkReady = hasClerk && isLoaded && !clerkTimedOut
-  const clerkLoading = hasClerk && !isLoaded && !clerkTimedOut
 
   // Auto-scan fingerprint on sign-up page
   useEffect(() => {
@@ -64,7 +49,6 @@ export function AuthPage() {
 
       getFingerprint().then((result) => {
         if (!result) {
-          // Fingerprint Pro not configured — skip scan
           setFpStatus('verified')
           setFpMessage('Device check skipped (not configured)')
           return
@@ -72,7 +56,6 @@ export function AuthPage() {
 
         setFpResult(result)
 
-        // Check with server for duplicate devices
         checkDeviceFingerprint(result).then((check) => {
           if (check.isClean) {
             setFpStatus('verified')
@@ -82,7 +65,6 @@ export function AuthPage() {
             setFpMessage(check.message)
           }
         }).catch(() => {
-          // Network error — allow signup (graceful degradation)
           setFpStatus('verified')
           setFpMessage('Device check could not complete — proceeding')
         })
@@ -96,7 +78,6 @@ export function AuthPage() {
   // Reset fingerprint state when switching between sign-in/sign-up
   useEffect(() => {
     if (!isSignUp) {
-      // Don't need fingerprint for sign-in
       setFpStatus('idle')
     }
   }, [isSignUp])
@@ -130,7 +111,7 @@ export function AuthPage() {
             <FingerprintScanIndicator status={fpStatus} message={fpMessage} />
           )}
 
-          {/* Auth content — 4 states: blocked, loading, Clerk ready, fallback */}
+          {/* BLOCKED — device already registered */}
           {isSignUp && fpStatus === 'blocked' ? (
             <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-8">
               <div className="flex items-center gap-3 mb-4">
@@ -160,17 +141,10 @@ export function AuthPage() {
                 Contact Support
               </button>
             </div>
-          ) : clerkLoading ? (
-            <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-8">
-              <h1 className="text-2xl font-bold text-[#0F172A] tracking-tight">
-                {isSignUp ? 'Create Your Account.' : 'Welcome Back. Sign In.'}
-              </h1>
-              <div className="mt-8 flex items-center justify-center py-8">
-                <div className="w-8 h-8 border-[3px] border-[#2563EB] border-t-transparent rounded-full animate-spin" />
-              </div>
-              <p className="text-center text-sm text-[#64748B]">Loading secure sign-in...</p>
-            </div>
-          ) : clerkReady ? (
+          ) : hasClerk ? (
+            /* CLERK AUTH — Renders Clerk's own SignUp/SignIn components.
+               These components handle their own loading state internally.
+               No need to check isLoaded — they show a skeleton while loading. */
             <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
               {isSignUp ? (
                 <SignUp
@@ -213,6 +187,7 @@ export function AuthPage() {
               )}
             </div>
           ) : (
+            /* FALLBACK — No Clerk key, show demo form */
             <FallbackAuthForm isSignUp={isSignUp} fingerprintResult={fpResult} />
           )}
         </div>
@@ -287,7 +262,6 @@ function FallbackAuthForm({ isSignUp, fingerprintResult }: { isSignUp: boolean; 
     setIsSubmitting(true)
 
     try {
-      // If signing up, verify fingerprint first
       if (isSignUp && fingerprintResult) {
         const check = await checkDeviceFingerprint(fingerprintResult)
         if (!check.isClean) {
@@ -297,7 +271,6 @@ function FallbackAuthForm({ isSignUp, fingerprintResult }: { isSignUp: boolean; 
         }
       }
 
-      // Simulate auth — create a mock Clerk ID
       const mockClerkId = `user_mock_${Date.now()}`
       setClerkId(mockClerkId)
       setUserEmail(email)
@@ -306,7 +279,6 @@ function FallbackAuthForm({ isSignUp, fingerprintResult }: { isSignUp: boolean; 
       setAuthenticated(true)
       setView('dashboard-idle')
 
-      // Store fingerprint after successful signup
       if (isSignUp && fingerprintResult) {
         try {
           await fetch('/api/fingerprint/store', {
