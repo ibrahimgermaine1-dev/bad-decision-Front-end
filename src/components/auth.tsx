@@ -42,6 +42,20 @@ export function AuthPage() {
   // Determine the Clerk publishable key
   const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 
+  // Clerk loading timeout — if Clerk doesn't load in 6s, fall back to demo
+  const [clerkTimedOut, setClerkTimedOut] = useState(false)
+  useEffect(() => {
+    if (hasClerk && !isLoaded) {
+      const timer = setTimeout(() => setClerkTimedOut(true), 6000)
+      return () => clearTimeout(timer)
+    }
+    if (isLoaded) setClerkTimedOut(false)
+  }, [hasClerk, isLoaded])
+
+  // If Clerk timed out, treat it as not configured
+  const clerkReady = hasClerk && isLoaded && !clerkTimedOut
+  const clerkLoading = hasClerk && !isLoaded && !clerkTimedOut
+
   // Auto-scan fingerprint on sign-up page
   useEffect(() => {
     if (isSignUp && fpStatus === 'idle') {
@@ -146,7 +160,7 @@ export function AuthPage() {
                 Contact Support
               </button>
             </div>
-          ) : hasClerk && !isLoaded ? (
+          ) : clerkLoading ? (
             <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-8">
               <h1 className="text-2xl font-bold text-[#0F172A] tracking-tight">
                 {isSignUp ? 'Create Your Account.' : 'Welcome Back. Sign In.'}
@@ -156,7 +170,7 @@ export function AuthPage() {
               </div>
               <p className="text-center text-sm text-[#64748B]">Loading secure sign-in...</p>
             </div>
-          ) : hasClerk && isLoaded ? (
+          ) : clerkReady ? (
             <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
               {isSignUp ? (
                 <SignUp
