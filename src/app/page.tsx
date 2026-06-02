@@ -96,8 +96,8 @@ export default function BadDecisionAI() {
 
       // Only set demo data if user hasn't already synced
       const { coinBalance } = useAppStore.getState()
-      if (coinBalance.total_purchased === 0) {
-        setCoinBalance({ balance: 50, coins_reserved: 0, total_purchased: 50 })
+      if (coinBalance.coins_lifetime === 0) {
+        setCoinBalance({ coins_balance: 50, coins_reserved: 0, coins_lifetime: 50 })
         setTier('free')
         setCollections([
           { id: '1', name: 'Roofers in Texas', task_type: 'ads_intent', lead_count: 12, created_at: '2026-05-30' },
