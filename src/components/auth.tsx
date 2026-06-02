@@ -5,6 +5,11 @@
  * Uses Clerk's pre-built SignIn and SignUp components.
  * Falls back to a custom form when Clerk is not configured.
  *
+ * SWITCHING between sign-in and sign-up:
+ * We hide Clerk's internal footer links (they break SPAs)
+ * and render our own switching links that use Zustand's setView().
+ * This keeps everything client-side — no full page reload.
+ *
  * FINGERPRINT PRO INTEGRATION:
  * On the sign-up page, we:
  *   1. Generate a device fingerprint using FingerprintJS Pro
@@ -12,9 +17,6 @@
  *   3. Verify the fingerprint against our server for duplicate accounts
  *   4. Block signup if the device already has an account
  *   5. Store the verified fingerprint after successful signup
- *
- * Clean white card centered on light gray background.
- * Full navigation bar at top for easy return to site.
  */
 import { useState, useEffect, useCallback } from 'react'
 import { useAppStore, type AppView } from '@/stores/app-store'
@@ -28,6 +30,14 @@ import { getFingerprint, checkDeviceFingerprint, type FingerprintResult } from '
 // ============================================================
 type FingerprintStatus = 'idle' | 'scanning' | 'verified' | 'blocked' | 'error'
 
+// Valid views for URL param reading
+const VALID_VIEWS: AppView[] = [
+  'landing', 'pricing', 'faq', 'contact', 'solutions',
+  'signup', 'signin',
+  'dashboard-idle', 'dashboard-searching', 'dashboard-results',
+  'dashboard-coin-vault', 'dashboard-support',
+]
+
 export function AuthPage() {
   const { setView } = useAppStore()
   const view = useAppStore((s) => s.view)
@@ -40,6 +50,34 @@ export function AuthPage() {
 
   // Check if Clerk publishable key is set
   const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+
+  // ============================================================
+  // READ URL PARAMS ON MOUNT
+  // So that Clerk's redirectUrl / afterSignInUrl navigation works.
+  // Also handles direct URL access like /?view=signup
+  // ============================================================
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const viewParam = params.get('view')
+    if (viewParam && VALID_VIEWS.includes(viewParam as AppView)) {
+      setView(viewParam as AppView)
+    }
+  }, [setView])
+
+  // Also listen for popstate (back/forward navigation)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search)
+      const viewParam = params.get('view')
+      if (viewParam && VALID_VIEWS.includes(viewParam as AppView)) {
+        setView(viewParam as AppView)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [setView])
 
   // Auto-scan fingerprint on sign-up page
   useEffect(() => {
@@ -142,16 +180,25 @@ export function AuthPage() {
               </button>
             </div>
           ) : hasClerk ? (
-            /* CLERK AUTH — Renders Clerk's own SignUp/SignIn components.
-               These components handle their own loading state internally.
-               No need to check isLoaded — they show a skeleton while loading. */
+            /* CLERK AUTH
+             *
+             * We use routing="hash" so Clerk handles its own multi-step
+             * flows (email verification, etc.) via hash changes — no
+             * Next.js file-based routing needed.
+             *
+             * We HIDE Clerk's internal "Sign in instead" / "Don't have
+             * an account?" links (footerAction) because they try to
+             * navigate to a URL, which breaks our Zustand SPA routing.
+             * Instead, we render our own switching links below the card.
+             */
             <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
               {isSignUp ? (
                 <SignUp
                   routing="hash"
-                  signInUrl="/?view=signin"
+                  signInUrl="#signin"
                   redirectUrl="/?view=dashboard-idle"
                   afterSignUpUrl="/?view=dashboard-idle"
+                  afterSignUpComplete={handleClerkSignUpComplete}
                   appearance={{
                     elements: {
                       rootBox: "w-full",
@@ -160,7 +207,7 @@ export function AuthPage() {
                       headerSubtitle: "text-[#64748B] text-sm mt-2",
                       formButtonPrimary: "bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-11 font-semibold w-full",
                       formFieldInput: "border-[#E2E8F0] h-11",
-                      footerActionLink: "text-[#2563EB] hover:text-[#1D4ED8] font-medium",
+                      footerAction: "hidden",
                       socialButtonsBlockButton: "border-[#E2E8F0] h-11 font-medium text-[#0F172A]",
                     },
                   }}
@@ -168,7 +215,7 @@ export function AuthPage() {
               ) : (
                 <SignIn
                   routing="hash"
-                  signUpUrl="/?view=signup"
+                  signUpUrl="#signup"
                   redirectUrl="/?view=dashboard-idle"
                   afterSignInUrl="/?view=dashboard-idle"
                   appearance={{
@@ -179,7 +226,7 @@ export function AuthPage() {
                       headerSubtitle: "text-[#64748B] text-sm mt-2",
                       formButtonPrimary: "bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-11 font-semibold w-full",
                       formFieldInput: "border-[#E2E8F0] h-11",
-                      footerActionLink: "text-[#2563EB] hover:text-[#1D4ED8] font-medium",
+                      footerAction: "hidden",
                       socialButtonsBlockButton: "border-[#E2E8F0] h-11 font-medium text-[#0F172A]",
                     },
                   }}
@@ -189,6 +236,19 @@ export function AuthPage() {
           ) : (
             /* FALLBACK — No Clerk key, show demo form */
             <FallbackAuthForm isSignUp={isSignUp} fingerprintResult={fpResult} />
+          )}
+
+          {/* CUSTOM SWITCHING LINK — replaces Clerk's hidden footer links */}
+          {hasClerk && fpStatus !== 'blocked' && (
+            <p className="mt-6 text-center text-sm text-[#64748B]">
+              {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+              <button
+                onClick={() => setView(isSignUp ? 'signin' : 'signup')}
+                className="text-[#2563EB] hover:text-[#1D4ED8] font-semibold cursor-pointer"
+              >
+                {isSignUp ? 'Sign in' : 'Create one free'}
+              </button>
+            </p>
           )}
         </div>
       </div>
@@ -274,7 +334,7 @@ function FallbackAuthForm({ isSignUp, fingerprintResult }: { isSignUp: boolean; 
       const mockClerkId = `user_mock_${Date.now()}`
       setClerkId(mockClerkId)
       setUserEmail(email)
-      setCoinBalance({ coins_balance: 50, coins_reserved: 0, coins_lifetime: 50 })
+      setCoinBalance({ balance: 50, coins_reserved: 0, total_purchased: 50 })
       setTier('free')
       setAuthenticated(true)
       setView('dashboard-idle')
