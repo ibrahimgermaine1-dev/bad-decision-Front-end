@@ -2,25 +2,25 @@
 
 /**
  * AUTH PAGES — Sign Up + Sign In
- * Uses Clerk's pre-built SignIn and SignUp components.
- * Falls back to a custom form when Clerk is not configured.
+ * Uses Clerk's useSignUp() / useSignIn() hooks with a CUSTOM form.
  *
- * SWITCHING between sign-in and sign-up:
- * We hide Clerk's internal footer links (they break SPAs)
- * and render our own switching links that use Zustand's setView().
- * This keeps everything client-side — no full page reload.
+ * WHY NOT use Clerk's pre-built <SignIn>/<SignUp> components?
+ * Those components don't render form fields when used inline in a
+ * single-page app with Zustand routing — they mount but show empty
+ * content. Using Clerk hooks with our own form gives us full control
+ * and guaranteed rendering.
  *
- * FINGERPRINT PRO INTEGRATION:
- * On the sign-up page, we:
- *   1. Generate a device fingerprint using FingerprintJS Pro
- *   2. Show a real "Device Verification" scan indicator
- *   3. Verify the fingerprint against our server for duplicate accounts
- *   4. Block signup if the device already has an account
- *   5. Store the verified fingerprint after successful signup
+ * FEATURES:
+ *   - Email + password sign-up and sign-in
+ *   - Google OAuth (popup-based, no redirect needed)
+ *   - Email verification code flow after sign-up
+ *   - Fingerprint Pro device verification on sign-up
+ *   - Custom switching links between sign-in and sign-up
+ *   - Auto-redirect to dashboard after successful auth
  */
 import { useState, useEffect, useCallback } from 'react'
+import { useSignUp, useSignIn, useClerk } from '@clerk/nextjs'
 import { useAppStore, type AppView } from '@/stores/app-store'
-import { SignIn, SignUp } from '@clerk/nextjs'
 import { Navigation } from '@/components/navigation'
 import { Footer } from '@/components/footer'
 import { getFingerprint, checkDeviceFingerprint, type FingerprintResult } from '@/lib/fingerprint'
@@ -43,18 +43,32 @@ export function AuthPage() {
   const view = useAppStore((s) => s.view)
   const isSignUp = view === 'signup'
 
+  // Clerk hooks
+  const { isLoaded: signUpLoaded, signUp } = useSignUp()
+  const { isLoaded: signInLoaded, signIn } = useSignIn()
+  const { setActive } = useClerk()
+
+  // Form state
+  const [emailAddress, setEmailAddress] = useState('')
+  const [password, setPassword] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+
+  // Email verification state (sign-up flow)
+  const [pendingVerification, setPendingVerification] = useState(false)
+  const [verifyingCode, setVerifyingCode] = useState('')
+
+  // UI state
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+
   // Fingerprint state (only used for sign-up)
   const [fpStatus, setFpStatus] = useState<FingerprintStatus>('idle')
   const [fpResult, setFpResult] = useState<FingerprintResult | null>(null)
   const [fpMessage, setFpMessage] = useState('')
 
-  // Check if Clerk publishable key is set
-  const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-
   // ============================================================
   // READ URL PARAMS ON MOUNT
-  // So that Clerk's redirectUrl / afterSignInUrl navigation works.
-  // Also handles direct URL access like /?view=signup
   // ============================================================
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -65,7 +79,7 @@ export function AuthPage() {
     }
   }, [setView])
 
-  // Also listen for popstate (back/forward navigation)
+  // Listen for browser back/forward
   useEffect(() => {
     if (typeof window === 'undefined') return
     const handlePopState = () => {
@@ -120,37 +134,173 @@ export function AuthPage() {
     }
   }, [isSignUp])
 
-  // After Clerk sign-up completes, store the fingerprint
-  const handleClerkSignUpComplete = useCallback(async () => {
-    if (fpResult) {
-      try {
-        await fetch('/api/fingerprint/store', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            visitor_id: fpResult.visitorId,
-          }),
-        })
-      } catch {
-        // Non-critical — the webhook will also try to store it
+  // Reset form state when switching views
+  useEffect(() => {
+    setEmailAddress('')
+    setPassword('')
+    setFirstName('')
+    setLastName('')
+    setPendingVerification(false)
+    setVerifyingCode('')
+    setError('')
+    setIsLoading(false)
+  }, [view])
+
+  // ============================================================
+  // EMAIL SIGN-UP
+  // ============================================================
+  const handleEmailSignUp = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!signUpLoaded) return
+
+    setIsLoading(true)
+    setError('')
+
+    try {
+      // Check fingerprint first
+      if (fpResult) {
+        const check = await checkDeviceFingerprint(fpResult)
+        if (!check.isClean) {
+          setError(check.message)
+          setIsLoading(false)
+          return
+        }
       }
+
+      // Create the user in Clerk
+      const result = await signUp.create({
+        emailAddress,
+        password,
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+        unsafeMetadata: {
+          device_fingerprint: fpResult?.visitorId || '',
+          country: useAppStore.getState().userCountry || 'US',
+        },
+      })
+
+      // Check if email verification is required
+      if (result.status === 'missing_requirements') {
+        // Need email verification
+        await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
+        setPendingVerification(true)
+      } else if (result.status === 'complete') {
+        // Signed up and verified immediately (e.g. OAuth)
+        await setActive({ session: result.createdSessionId })
+        setView('dashboard-idle')
+      }
+    } catch (err: any) {
+      const message = err.errors?.[0]?.longMessage || err.errors?.[0]?.message || 'Something went wrong. Please try again.'
+      setError(message)
+    } finally {
+      setIsLoading(false)
     }
-  }, [fpResult])
+  }, [signUpLoaded, signUp, emailAddress, password, firstName, lastName, fpResult, setActive, setView])
 
-  return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
-      <Navigation />
+  // ============================================================
+  // EMAIL VERIFICATION (after sign-up)
+  // ============================================================
+  const handleVerification = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!signUpLoaded) return
 
-      {/* Auth Card */}
-      <div className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md">
-          {/* Fingerprint Scan Indicator (sign-up only) */}
-          {isSignUp && fpStatus !== 'idle' && (
-            <FingerprintScanIndicator status={fpStatus} message={fpMessage} />
-          )}
+    setIsLoading(true)
+    setError('')
 
-          {/* BLOCKED — device already registered */}
-          {isSignUp && fpStatus === 'blocked' ? (
+    try {
+      const result = await signUp.attemptEmailAddressVerification({
+        code: verifyingCode,
+      })
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId })
+        setView('dashboard-idle')
+      } else {
+        setError('Verification failed. Please check the code and try again.')
+      }
+    } catch (err: any) {
+      const message = err.errors?.[0]?.longMessage || err.errors?.[0]?.message || 'Verification failed.'
+      setError(message)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [signUpLoaded, signUp, verifyingCode, setActive, setView])
+
+  // ============================================================
+  // EMAIL SIGN-IN
+  // ============================================================
+  const handleEmailSignIn = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!signInLoaded) return
+
+    setIsLoading(true)
+    setError('')
+
+    try {
+      const result = await signIn.create({
+        identifier: emailAddress,
+        password,
+      })
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId })
+        setView('dashboard-idle')
+      } else {
+        // Might need additional verification (MFA, etc.)
+        setError('Additional verification required. Please try again.')
+      }
+    } catch (err: any) {
+      const message = err.errors?.[0]?.longMessage || err.errors?.[0]?.message || 'Sign in failed. Please check your credentials.'
+      setError(message)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [signInLoaded, signIn, emailAddress, password, setActive, setView])
+
+  // ============================================================
+  // GOOGLE OAUTH — popup-based (no redirect, stays on page)
+  // ============================================================
+  const handleGoogleOAuth = useCallback(async () => {
+    if (isSignUp && !signUpLoaded) return
+    if (!isSignUp && !signInLoaded) return
+
+    setIsLoading(true)
+    setError('')
+
+    try {
+      if (isSignUp) {
+        // Sign up with Google
+        await signUp.authenticateWithRedirect({
+          strategy: 'oauth_google',
+          redirectUrl: window.location.origin + '/sso-callback',
+          redirectUrlComplete: window.location.origin + '/?view=dashboard-idle',
+        })
+      } else {
+        // Sign in with Google
+        await signIn.authenticateWithRedirect({
+          strategy: 'oauth_google',
+          redirectUrl: window.location.origin + '/sso-callback',
+          redirectUrlComplete: window.location.origin + '/?view=dashboard-idle',
+        })
+      }
+    } catch (err: any) {
+      const message = err.errors?.[0]?.longMessage || err.errors?.[0]?.message || 'Google sign-in failed. Please try again.'
+      setError(message)
+      setIsLoading(false)
+    }
+  }, [isSignUp, signUpLoaded, signInLoaded, signUp, signIn])
+
+  // ============================================================
+  // RENDER
+  // ============================================================
+
+  // BLOCKED — device already registered
+  if (isSignUp && fpStatus === 'blocked') {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
+        <Navigation />
+        <div className="flex-1 flex items-center justify-center px-4 py-12">
+          <div className="w-full max-w-md">
             <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-8">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full bg-[#FEE2E2] flex items-center justify-center">
@@ -168,7 +318,7 @@ export function AuthPage() {
               </p>
               <button
                 onClick={() => setView('signin')}
-                className="mt-6 w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-11 font-semibold rounded-lg"
+                className="mt-6 w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-11 font-semibold rounded-lg transition-colors"
               >
                 Sign In Instead
               </button>
@@ -179,67 +329,165 @@ export function AuthPage() {
                 Contact Support
               </button>
             </div>
-          ) : hasClerk ? (
-            /* CLERK AUTH
-             *
-             * We use routing="hash" so Clerk handles its own multi-step
-             * flows (email verification, etc.) via hash changes — no
-             * Next.js file-based routing needed.
-             *
-             * We HIDE Clerk's internal "Sign in instead" / "Don't have
-             * an account?" links (footerAction) because they try to
-             * navigate to a URL, which breaks our Zustand SPA routing.
-             * Instead, we render our own switching links below the card.
-             */
-            <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
-              {isSignUp ? (
-                <SignUp
-                  routing="hash"
-                  signInUrl="#signin"
-                  redirectUrl="/?view=dashboard-idle"
-                  afterSignUpUrl="/?view=dashboard-idle"
-                  afterSignUpComplete={handleClerkSignUpComplete}
-                  appearance={{
-                    elements: {
-                      rootBox: "w-full",
-                      card: "shadow-none border-0 p-8",
-                      headerTitle: "text-2xl font-bold text-[#0F172A] tracking-tight",
-                      headerSubtitle: "text-[#64748B] text-sm mt-2",
-                      formButtonPrimary: "bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-11 font-semibold w-full",
-                      formFieldInput: "border-[#E2E8F0] h-11",
-                      footerAction: "hidden",
-                      socialButtonsBlockButton: "border-[#E2E8F0] h-11 font-medium text-[#0F172A]",
-                    },
-                  }}
-                />
-              ) : (
-                <SignIn
-                  routing="hash"
-                  signUpUrl="#signup"
-                  redirectUrl="/?view=dashboard-idle"
-                  afterSignInUrl="/?view=dashboard-idle"
-                  appearance={{
-                    elements: {
-                      rootBox: "w-full",
-                      card: "shadow-none border-0 p-8",
-                      headerTitle: "text-2xl font-bold text-[#0F172A] tracking-tight",
-                      headerSubtitle: "text-[#64748B] text-sm mt-2",
-                      formButtonPrimary: "bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-11 font-semibold w-full",
-                      formFieldInput: "border-[#E2E8F0] h-11",
-                      footerAction: "hidden",
-                      socialButtonsBlockButton: "border-[#E2E8F0] h-11 font-medium text-[#0F172A]",
-                    },
-                  }}
-                />
-              )}
-            </div>
-          ) : (
-            /* FALLBACK — No Clerk key, show demo form */
-            <FallbackAuthForm isSignUp={isSignUp} fingerprintResult={fpResult} />
+          </div>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
+      <Navigation />
+
+      {/* Auth Card */}
+      <div className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md">
+          {/* Fingerprint Scan Indicator (sign-up only) */}
+          {isSignUp && fpStatus !== 'idle' && (
+            <FingerprintScanIndicator status={fpStatus} message={fpMessage} />
           )}
 
-          {/* CUSTOM SWITCHING LINK — replaces Clerk's hidden footer links */}
-          {hasClerk && fpStatus !== 'blocked' && (
+          {/* Main Auth Card */}
+          <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-8">
+            {/* Header */}
+            <h1 className="text-2xl font-bold text-[#0F172A] tracking-tight">
+              {pendingVerification ? 'Verify Your Email' : isSignUp ? 'Create Your Account' : 'Welcome Back'}
+            </h1>
+            <p className="mt-2 text-[#64748B] text-sm">
+              {pendingVerification
+                ? 'We sent a verification code to your email. Enter it below.'
+                : isSignUp
+                  ? 'Get 50 free verified contacts when you sign up. No credit card needed.'
+                  : 'Sign in to access your dashboard and contacts.'}
+            </p>
+
+            {/* Error Display */}
+            {error && (
+              <div className="mt-4 rounded-lg bg-[#FEF2F2] border border-[#FECACA] p-3">
+                <p className="text-sm text-[#DC2626]">{error}</p>
+              </div>
+            )}
+
+            {/* Email Verification Form */}
+            {pendingVerification ? (
+              <form onSubmit={handleVerification} className="mt-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-2">Verification Code</label>
+                  <input
+                    type="text"
+                    value={verifyingCode}
+                    onChange={(e) => setVerifyingCode(e.target.value)}
+                    placeholder="Enter the 6-digit code"
+                    className="w-full border border-[#E2E8F0] rounded-lg h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isLoading || !verifyingCode.trim()}
+                  className="w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-11 font-semibold rounded-lg disabled:opacity-50 transition-colors"
+                >
+                  {isLoading ? 'Verifying...' : 'Verify Email'}
+                </button>
+              </form>
+            ) : (
+              <>
+                {/* Google OAuth Button */}
+                <button
+                  onClick={handleGoogleOAuth}
+                  disabled={isLoading}
+                  className="mt-6 w-full flex items-center justify-center gap-3 border border-[#E2E8F0] rounded-lg h-11 font-medium text-[#0F172A] hover:bg-[#F8FAFC] transition-colors disabled:opacity-50"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                  </svg>
+                  {isSignUp ? 'Sign up with Google' : 'Sign in with Google'}
+                </button>
+
+                {/* Divider */}
+                <div className="mt-6 flex items-center gap-3">
+                  <div className="flex-1 h-px bg-[#E2E8F0]" />
+                  <span className="text-xs text-[#94A3B8] uppercase tracking-wide">or</span>
+                  <div className="flex-1 h-px bg-[#E2E8F0]" />
+                </div>
+
+                {/* Email/Password Form */}
+                <form onSubmit={isSignUp ? handleEmailSignUp : handleEmailSignIn} className="mt-6 space-y-4">
+                  {/* Name fields (sign-up only) */}
+                  {isSignUp && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-[#0F172A] mb-2">First Name</label>
+                        <input
+                          type="text"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          placeholder="First"
+                          className="w-full border border-[#E2E8F0] rounded-lg h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-[#0F172A] mb-2">Last Name</label>
+                        <input
+                          type="text"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          placeholder="Last"
+                          className="w-full border border-[#E2E8F0] rounded-lg h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Email */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#0F172A] mb-2">Email Address</label>
+                    <input
+                      type="email"
+                      value={emailAddress}
+                      onChange={(e) => setEmailAddress(e.target.value)}
+                      placeholder="you@company.com"
+                      className="w-full border border-[#E2E8F0] rounded-lg h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+                      required
+                    />
+                  </div>
+
+                  {/* Password */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#0F172A] mb-2">Password</label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={isSignUp ? 'Minimum 8 characters' : 'Enter your password'}
+                      className="w-full border border-[#E2E8F0] rounded-lg h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+                      required
+                      minLength={8}
+                    />
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-11 font-semibold rounded-lg disabled:opacity-50 transition-colors"
+                  >
+                    {isLoading
+                      ? (isSignUp ? 'Creating Account...' : 'Signing In...')
+                      : (isSignUp ? 'Create Free Account' : 'Sign In')}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+
+          {/* Custom Switching Link */}
+          {!pendingVerification && (
             <p className="mt-6 text-center text-sm text-[#64748B]">
               {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
               <button
@@ -303,118 +551,6 @@ function FingerprintScanIndicator({ status, message }: { status: FingerprintStat
           </div>
         </>
       )}
-    </div>
-  )
-}
-
-// ============================================================
-// FALLBACK AUTH FORM (used when Clerk keys are not set)
-// ============================================================
-function FallbackAuthForm({ isSignUp, fingerprintResult }: { isSignUp: boolean; fingerprintResult: FingerprintResult | null }) {
-  const { setView, setTier, setAuthenticated, setCoinBalance, setClerkId, setUserEmail } = useAppStore()
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const form = e.target as HTMLFormElement
-    const email = (form.elements.namedItem('email') as HTMLInputElement)?.value || ''
-
-    setIsSubmitting(true)
-
-    try {
-      if (isSignUp && fingerprintResult) {
-        const check = await checkDeviceFingerprint(fingerprintResult)
-        if (!check.isClean) {
-          alert(check.message)
-          setIsSubmitting(false)
-          return
-        }
-      }
-
-      const mockClerkId = `user_mock_${Date.now()}`
-      setClerkId(mockClerkId)
-      setUserEmail(email)
-      setCoinBalance({ coins_balance: 50, coins_reserved: 0, coins_lifetime: 50 })
-      setTier('free')
-      setAuthenticated(true)
-      setView('dashboard-idle')
-
-      if (isSignUp && fingerprintResult) {
-        try {
-          await fetch('/api/fingerprint/store', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ visitor_id: fingerprintResult.visitorId }),
-          })
-        } catch {
-          // Non-critical
-        }
-      }
-    } catch {
-      alert('Something went wrong. Please try again.')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  return (
-    <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-8">
-      <h1 className="text-2xl font-bold text-[#0F172A] tracking-tight">
-        {isSignUp ? 'Create Your Account.' : 'Welcome Back. Sign In.'}
-      </h1>
-      <p className="mt-2 text-[#64748B] text-sm">
-        {isSignUp
-          ? 'Get 50 free verified contacts when you sign up. No credit card needed.'
-          : 'Sign in to access your dashboard and contacts.'}
-      </p>
-
-      <form onSubmit={handleAuth} className="mt-8 space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-[#0F172A] mb-2">Email Address</label>
-          <input
-            name="email"
-            type="email"
-            placeholder="you@company.com"
-            className="w-full border border-[#E2E8F0] rounded-lg h-11 px-3 text-sm"
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-[#0F172A] mb-2">Password</label>
-          <input
-            type="password"
-            placeholder="Minimum 8 characters"
-            className="w-full border border-[#E2E8F0] rounded-lg h-11 px-3 text-sm"
-            required
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-11 font-semibold rounded-lg disabled:opacity-50"
-        >
-          {isSubmitting ? 'Verifying...' : isSignUp ? 'Create Free Account' : 'Sign In'}
-        </button>
-      </form>
-
-      <p className="mt-6 text-center text-sm text-[#64748B]">
-        {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-        <button
-          onClick={() => setView(isSignUp ? 'signin' : 'signup')}
-          className="text-[#2563EB] hover:text-[#1D4ED8] font-medium"
-        >
-          {isSignUp ? 'Sign In' : 'Create Account'}
-        </button>
-      </p>
-
-      <div className="mt-4 rounded-lg bg-[#FEF3C7] border border-[#FDE68A] p-3">
-        <p className="text-xs text-[#92400E]">
-          Demo mode — Clerk is not configured. Sign up for a real account at{' '}
-          <a href="https://clerk.com" target="_blank" rel="noopener" className="underline font-medium">clerk.com</a>{' '}
-          and add your keys to enable real authentication.
-        </p>
-      </div>
     </div>
   )
 }
