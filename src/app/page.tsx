@@ -9,7 +9,7 @@
 
 import { useEffect } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
-import { useAppStore } from '@/stores/app-store'
+import { useAppStore, type AppView } from '@/stores/app-store'
 
 // View components
 import { LandingPage } from '@/components/landing'
@@ -20,12 +20,48 @@ import { AuthPage } from '@/components/auth'
 import { DashboardShell } from '@/components/dashboard'
 import { SolutionsPage } from '@/components/solutions'
 
+// Valid views for URL param reading
+const VALID_VIEWS: AppView[] = [
+  'landing', 'pricing', 'faq', 'contact', 'solutions',
+  'signup', 'signin',
+  'dashboard-idle', 'dashboard-searching', 'dashboard-results',
+  'dashboard-coin-vault', 'dashboard-support',
+]
+
 export default function BadDecisionAI() {
-  const { view, setUserCountry, setCoinBalance, setTier, setCollections, setClerkId, setUserEmail, setUserName, setAuthenticated, syncFromBackend } = useAppStore()
+  const { view, setView, setUserCountry, setCoinBalance, setTier, setCollections, setClerkId, setUserEmail, setUserName, setAuthenticated, syncFromBackend } = useAppStore()
 
   // Clerk auth hooks
   const { isSignedIn, userId } = useAuth()
   const { user } = useUser()
+
+  // ============================================================
+  // READ URL PARAMS ON MOUNT
+  // Handles direct URL access (/?view=signup) and Clerk's
+  // redirectUrl / afterSignInUrl navigation.
+  // ============================================================
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const viewParam = params.get('view')
+    if (viewParam && VALID_VIEWS.includes(viewParam as AppView)) {
+      setView(viewParam as AppView)
+    }
+  }, [setView])
+
+  // Listen for browser back/forward navigation
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search)
+      const viewParam = params.get('view')
+      if (viewParam && VALID_VIEWS.includes(viewParam as AppView)) {
+        setView(viewParam as AppView)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [setView])
 
   // Detect geo on mount
   useEffect(() => {
@@ -46,6 +82,11 @@ export default function BadDecisionAI() {
 
       // Sync their data from backend
       syncFromBackend()
+
+      // Auto-navigate to dashboard if currently on auth pages
+      if (view === 'signup' || view === 'signin') {
+        setView('dashboard-idle')
+      }
     } else {
       // Not authenticated — use demo data
       setClerkId(null)
@@ -55,8 +96,8 @@ export default function BadDecisionAI() {
 
       // Only set demo data if user hasn't already synced
       const { coinBalance } = useAppStore.getState()
-      if (coinBalance.coins_lifetime === 0) {
-        setCoinBalance({ coins_balance: 50, coins_reserved: 0, coins_lifetime: 50 })
+      if (coinBalance.total_purchased === 0) {
+        setCoinBalance({ balance: 50, coins_reserved: 0, total_purchased: 50 })
         setTier('free')
         setCollections([
           { id: '1', name: 'Roofers in Texas', task_type: 'ads_intent', lead_count: 12, created_at: '2026-05-30' },
@@ -64,7 +105,7 @@ export default function BadDecisionAI() {
         ])
       }
     }
-  }, [isSignedIn, userId, user, setClerkId, setUserEmail, setUserName, setAuthenticated, setCoinBalance, setTier, setCollections, syncFromBackend])
+  }, [isSignedIn, userId, user, setClerkId, setUserEmail, setUserName, setAuthenticated, setCoinBalance, setTier, setCollections, syncFromBackend, setView, view])
 
   // Route to the correct view
   switch (view) {
