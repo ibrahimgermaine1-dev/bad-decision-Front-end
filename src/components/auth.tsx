@@ -334,7 +334,7 @@ function FallbackAuthForm({ isSignUp, fingerprintResult }: { isSignUp: boolean; 
       const mockClerkId = `user_mock_${Date.now()}`
       setClerkId(mockClerkId)
       setUserEmail(email)
-      setCoinBalance({ balance: 50, coins_reserved: 0, total_purchased: 50 })
+      setCoinBalance({ coins_balance: 50, coins_reserved: 0, coins_lifetime: 50 })
       setTier('free')
       setAuthenticated(true)
       setView('dashboard-idle')
