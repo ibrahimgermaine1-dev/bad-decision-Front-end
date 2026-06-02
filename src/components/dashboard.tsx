@@ -84,6 +84,7 @@ export function DashboardShell() {
     selectedEngine, setSelectedEngine,
     searchQuery, setSearchQuery,
     taskStatus, setTaskStatus,
+    currentTaskId, setCurrentTaskId,
     leads, setLeads,
     collections,
     selectedLead, setSelectedLead,
