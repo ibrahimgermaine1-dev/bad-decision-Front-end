@@ -7,7 +7,7 @@
  * Falls back to demo mode when Clerk is not configured.
  */
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { useAppStore, type AppView } from '@/stores/app-store'
 
@@ -29,11 +29,25 @@ const VALID_VIEWS: AppView[] = [
 ]
 
 export default function BadDecisionAI() {
-  const { view, setView, setUserCountry, setCoinBalance, setTier, setCollections, setClerkId, setUserEmail, setUserName, setAuthenticated, syncFromBackend } = useAppStore()
+  const view = useAppStore((s) => s.view)
+  const setView = useAppStore((s) => s.setView)
+  const setUserCountry = useAppStore((s) => s.setUserCountry)
+  const setCoinBalance = useAppStore((s) => s.setCoinBalance)
+  const setTier = useAppStore((s) => s.setTier)
+  const setCollections = useAppStore((s) => s.setCollections)
+  const setClerkId = useAppStore((s) => s.setClerkId)
+  const setUserEmail = useAppStore((s) => s.setUserEmail)
+  const setUserName = useAppStore((s) => s.setUserName)
+  const setAuthenticated = useAppStore((s) => s.setAuthenticated)
+  const syncFromBackend = useAppStore((s) => s.syncFromBackend)
 
   // Clerk auth hooks
   const { isSignedIn, userId } = useAuth()
   const { user } = useUser()
+
+  // Track whether we've already synced this session to prevent infinite loops
+  const hasSyncedRef = useRef(false)
+  const lastClerkIdRef = useRef<string | null>(null)
 
   // ============================================================
   // READ URL PARAMS ON MOUNT
@@ -71,28 +85,48 @@ export default function BadDecisionAI() {
       .catch(() => setUserCountry('US'))
   }, [setUserCountry])
 
-  // Sync Clerk auth state with our store
+  // ============================================================
+  // SYNC CLERK AUTH STATE — with infinite loop protection
+  // Only syncs when isSignedIn/userId actually CHANGES,
+  // not on every render or view change.
+  // ============================================================
   useEffect(() => {
     if (isSignedIn && userId) {
-      // User is authenticated via Clerk
-      setClerkId(userId)
-      setUserEmail(user?.primaryEmailAddress?.emailAddress || null)
-      setUserName(user?.fullName || null)
-      setAuthenticated(true)
+      // Only set auth data if the Clerk user actually changed
+      if (lastClerkIdRef.current !== userId) {
+        lastClerkIdRef.current = userId
+        hasSyncedRef.current = false
 
-      // Sync their data from backend
-      syncFromBackend()
+        setClerkId(userId)
+        setUserEmail(user?.primaryEmailAddress?.emailAddress || null)
+        setUserName(user?.fullName || null)
+        setAuthenticated(true)
+      }
+
+      // Sync from backend — only once per sign-in session
+      if (!hasSyncedRef.current) {
+        hasSyncedRef.current = true
+        syncFromBackend()
+      }
 
       // Auto-navigate to dashboard if currently on auth pages
-      if (view === 'signup' || view === 'signin') {
+      // Read directly from store to avoid dependency on `view`
+      const currentView = useAppStore.getState().view
+      if (currentView === 'signup' || currentView === 'signin') {
         setView('dashboard-idle')
       }
     } else {
-      // Not authenticated — use demo data
-      setClerkId(null)
-      setUserEmail(null)
-      setUserName(null)
-      setAuthenticated(false)
+      // Not authenticated
+      if (lastClerkIdRef.current !== null) {
+        // User just signed out — reset
+        lastClerkIdRef.current = null
+        hasSyncedRef.current = false
+
+        setClerkId(null)
+        setUserEmail(null)
+        setUserName(null)
+        setAuthenticated(false)
+      }
 
       // Only set demo data if user hasn't already synced
       const { coinBalance } = useAppStore.getState()
@@ -105,7 +139,7 @@ export default function BadDecisionAI() {
         ])
       }
     }
-  }, [isSignedIn, userId, user, setClerkId, setUserEmail, setUserName, setAuthenticated, setCoinBalance, setTier, setCollections, syncFromBackend, setView, view])
+  }, [isSignedIn, userId])  // ONLY depend on isSignedIn and userId — NOT view or user object
 
   // Route to the correct view
   switch (view) {
