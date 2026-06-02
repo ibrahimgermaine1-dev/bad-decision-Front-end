@@ -146,9 +146,18 @@ export function AuthPage() {
                 Contact Support
               </button>
             </div>
-          ) : (
-            /* Normal auth flow */
-            hasClerk && isLoaded ? (
+      ) : hasClerk && !isLoaded ? (
+  /* Clerk is configured but still loading — show spinner, NOT demo form */
+  <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-8">
+    <h1 className="text-2xl font-bold text-[#0F172A] tracking-tight">
+      {isSignUp ? 'Create Your Account.' : 'Welcome Back. Sign In.'}
+    </h1>
+    <div className="mt-8 flex items-center justify-center py-8">
+      <div className="w-8 h-8 border-3 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
+    </div>
+    <p className="text-center text-sm text-[#64748B]">Loading secure sign-in...</p>
+  </div>
+) : hasClerk && isLoaded ? (
               <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
                 {isSignUp ? (
                   <SignUp
