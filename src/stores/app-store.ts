@@ -20,9 +20,9 @@ export type EngineType = 'ads_intent' | 'smb_maps' | 'web_absent' | 'social_inte
 export type TaskStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'exhausted' | 'failed'
 
 export interface CoinBalance {
-  balance: number
+  coins_balance: number
   coins_reserved: number
-  total_purchased: number
+  coins_lifetime: number
 }
 
 export interface Lead {
@@ -134,13 +134,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   userCountry: 'NG',
   setUserCountry: (userCountry) => set({ userCountry }),
 
-  coinBalance: { balance: 0, coins_reserved: 0, total_purchased: 0 },
+  coinBalance: { coins_balance: 0, coins_reserved: 0, coins_lifetime: 0 },
   setCoinBalance: (coinBalance) => set({ coinBalance }),
   deductCoins: (amount) =>
     set((state) => ({
       coinBalance: {
         ...state.coinBalance,
-        balance: Math.max(0, state.coinBalance.balance - amount),
+        coins_balance: Math.max(0, state.coinBalance.coins_balance - amount),
         coins_reserved: Math.max(0, state.coinBalance.coins_reserved - amount),
       },
     })),
@@ -148,8 +148,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({
       coinBalance: {
         ...state.coinBalance,
-        balance: state.coinBalance.balance + amount,
-        total_purchased: state.coinBalance.total_purchased + amount,
+        coins_balance: state.coinBalance.coins_balance + amount,
+        coins_lifetime: state.coinBalance.coins_lifetime + amount,
       },
     })),
 
@@ -192,7 +192,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         });
       }
       if (data.ledger) {
-        set({ coinBalance: data.ledger });
+        // Map backend fields to frontend CoinBalance format
+        set({
+          coinBalance: {
+            coins_balance: data.ledger.coins_balance ?? data.ledger.balance ?? 0,
+            coins_reserved: data.ledger.coins_reserved ?? 0,
+            coins_lifetime: data.ledger.coins_lifetime ?? data.ledger.total_purchased ?? 0,
+          },
+        });
       }
       if (data.collections) {
         set({ collections: data.collections });
