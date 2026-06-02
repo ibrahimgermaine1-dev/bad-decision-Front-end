@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 // GET /api/user?clerk_id=xxx
 // Returns user profile + coin balance + collections
 // Uses SCHEMA: profiles, coin_balances, smart_collections
+// Maps DB column names to frontend CoinBalance fields
 // ============================================================
 export async function GET(request: Request) {
   try {
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
       // Fallback for when Supabase is not configured
       return NextResponse.json({
         profile: { clerk_id: clerkId, tier: "free", country: "NG" },
-        ledger: { balance: 50, coins_reserved: 0, total_purchased: 50 },
+        ledger: { coins_balance: 50, coins_reserved: 0, coins_lifetime: 50 },
       });
     }
 
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get coin balance
+    // Get coin balance (DB uses balance/total_purchased, frontend uses coins_balance/coins_lifetime)
     const { data: coinBalance } = await supabaseAdmin
       .from("coin_balances")
       .select("balance, coins_reserved, total_purchased, last_recharge_at, updated_at")
@@ -49,6 +50,15 @@ export async function GET(request: Request) {
       .eq("user_id", profile.id)
       .order("created_at", { ascending: false });
 
+    // Map DB field names to frontend CoinBalance fields
+    const mappedLedger = coinBalance
+      ? {
+          coins_balance: coinBalance.balance,
+          coins_reserved: coinBalance.coins_reserved,
+          coins_lifetime: coinBalance.total_purchased,
+        }
+      : { coins_balance: 0, coins_reserved: 0, coins_lifetime: 0 };
+
     return NextResponse.json({
       profile: {
         id: profile.id,
@@ -58,7 +68,7 @@ export async function GET(request: Request) {
         tier: profile.tier,
         country: profile.country,
       },
-      ledger: coinBalance || { balance: 0, coins_reserved: 0, total_purchased: 0 },
+      ledger: mappedLedger,
       collections: collections || [],
     });
   } catch (error) {
