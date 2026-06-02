@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 // GET /api/coins?clerk_id=xxx
 // Returns coin balance and transaction history
 // Uses SCHEMA: profiles, coin_balances, coin_transactions
+// Maps DB column names to frontend CoinBalance fields
 // ============================================================
 export async function GET(request: Request) {
   try {
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) {
       return NextResponse.json({
-        ledger: { balance: 50, coins_reserved: 0, total_purchased: 50 },
+        ledger: { coins_balance: 50, coins_reserved: 0, coins_lifetime: 50 },
         plan: "free",
         transactions: [
           { id: "1", amount: 50, transaction_type: "signup_bonus", description: "Free 50 coins on account creation", created_at: new Date().toISOString() },
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get coin balance
+    // Get coin balance (DB uses balance/total_purchased, frontend uses coins_balance/coins_lifetime)
     const { data: coinBalance } = await supabaseAdmin
       .from("coin_balances")
       .select("balance, coins_reserved, total_purchased, updated_at")
@@ -52,8 +53,17 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false })
       .limit(20);
 
+    // Map DB field names to frontend CoinBalance fields
+    const mappedLedger = coinBalance
+      ? {
+          coins_balance: coinBalance.balance,
+          coins_reserved: coinBalance.coins_reserved,
+          coins_lifetime: coinBalance.total_purchased,
+        }
+      : { coins_balance: 0, coins_reserved: 0, coins_lifetime: 0 };
+
     return NextResponse.json({
-      ledger: coinBalance || { balance: 0, coins_reserved: 0, total_purchased: 0 },
+      ledger: mappedLedger,
       plan: profile.tier,
       transactions: transactions || [],
     });
