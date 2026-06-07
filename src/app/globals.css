@@ -1,0 +1,124 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ============================================================
+   BAD DECISION AI — Design System
+   Strict color palette from UI/UX specification
+   Plus Jakarta Sans. No emojis. Premium typography.
+   ============================================================ */
+
+@theme {
+  /* Brand Colors */
+  --color-midnight: #0B1120;
+  --color-royal: #2563EB;
+  --color-royal-hover: #1D4ED8;
+  --color-royal-light: #DBEAFE;
+  --color-slate: #0F172A;
+  --color-surface: #F8FAFC;
+  --color-border: #E2E8F0;
+  --color-ghost: #F1F5F9;
+  --color-absent-bg: #FEE2E2;
+  --color-absent-text: #DC2626;
+  --color-warn-bg: #FEF08A;
+  --color-warn-text: #D97706;
+  --color-success: #16A34A;
+  --color-success-bg: #DCFCE7;
+
+  /* shadcn/ui Semantic Tokens */
+  --color-background: #FFFFFF;
+  --color-foreground: #0F172A;
+  --color-primary: #2563EB;
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary: #F8FAFC;
+  --color-secondary-foreground: #0F172A;
+  --color-muted: #F1F5F9;
+  --color-muted-foreground: #64748B;
+  --color-accent: #DBEAFE;
+  --color-accent-foreground: #0F172A;
+  --color-destructive: #DC2626;
+  --color-destructive-foreground: #FFFFFF;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #0F172A;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #0F172A;
+  --color-input: #E2E8F0;
+  --color-ring: #2563EB;
+  --color-chart-1: #2563EB;
+  --color-chart-2: #16A34A;
+  --color-chart-3: #D97706;
+  --color-chart-4: #DC2626;
+  --color-chart-5: #8B5CF6;
+
+  /* Border radius */
+  --radius-lg: 0.5rem;
+  --radius-md: calc(var(--radius-lg) - 2px);
+  --radius-sm: calc(var(--radius-lg) - 4px);
+}
+
+@layer base {
+  * {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    color: var(--color-foreground);
+    background: var(--color-background);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Premium tight typography */
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+  }
+
+  p {
+    line-height: 1.6;
+  }
+
+  /* Blinking cursor animation */
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+
+  .cursor-blink {
+    animation: blink 1s infinite;
+  }
+
+  /* Pulse animation for ghost rows */
+  @keyframes pulse-row {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+  }
+
+  .pulse-row {
+    animation: pulse-row 1.5s ease-in-out infinite;
+  }
+
+  /* Smooth drawer transition */
+  .drawer-enter {
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .drawer-enter-active {
+    transform: translateX(0);
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #CBD5E1;
+}
