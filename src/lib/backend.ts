@@ -4,14 +4,15 @@
  * https://bad-decision-backend-main.onrender.com
  *
  * Backend endpoints (from /docs):
- *   GET  /                           — Health check
- *   GET  /health                     — DB health check
- *   POST /api/tasks/create           — Create a new search task
- *   GET  /api/tasks/{user_id}        — Get all tasks for a user
- *   GET  /api/leads/{collection_id}  — Get leads in a collection
- *   GET  /api/cache/check            — Check global cache
- *   POST /api/coins/deduct           — Deduct coins
- *   POST /api/coins/add              — Add coins after payment
+ *   GET  /                               — Health check
+ *   GET  /health                         — DB health check
+ *   POST /api/tasks/create               — Create a new search task
+ *   GET  /api/tasks/{user_id}            — Get all tasks for a user
+ *   GET  /api/leads/{collection_or_task_id}  — Get leads (by collection OR task ID)
+ *   GET  /api/collections/{user_id}      — Get user's smart collections
+ *   GET  /api/cache/check                — Check global cache
+ *   POST /api/coins/deduct               — Deduct coins
+ *   POST /api/coins/add                  — Add coins after payment
  */
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://bad-decision-backend-main.onrender.com'
@@ -73,6 +74,16 @@ export interface LeadsResponse {
   }[]
 }
 
+export interface CollectionsResponse {
+  collections: {
+    id: string
+    name: string
+    task_type: string
+    lead_count: number
+    created_at: string
+  }[]
+}
+
 export interface CoinOperationResponse {
   success: boolean
   data?: unknown
@@ -129,16 +140,33 @@ export async function getUserTasks(userId: string): Promise<TasksListResponse> {
 }
 
 /**
- * Get all leads in a smart collection.
+ * Get all leads in a smart collection (or by task ID).
+ * The backend now supports both collection_id and task_id lookups.
  *
- * Backend: GET /api/leads/{collection_id}
+ * Backend: GET /api/leads/{collection_or_task_id}
  *   Returns: { leads: [...] } — each lead has global_intelligence_cache joined
  */
-export async function getCollectionLeads(collectionId: string): Promise<LeadsResponse> {
-  const res = await fetch(`${BACKEND_URL}/api/leads/${encodeURIComponent(collectionId)}`)
+export async function getCollectionLeads(collectionOrTaskId: string): Promise<LeadsResponse> {
+  const res = await fetch(`${BACKEND_URL}/api/leads/${encodeURIComponent(collectionOrTaskId)}`)
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Get leads failed (${res.status}): ${text}`)
+  }
+  return res.json()
+}
+
+/**
+ * Get all smart collections for a user.
+ * Returns proper collection IDs and lead counts.
+ *
+ * Backend: GET /api/collections/{user_id}
+ *   Returns: { collections: [...] }
+ */
+export async function getUserCollections(userId: string): Promise<CollectionsResponse> {
+  const res = await fetch(`${BACKEND_URL}/api/collections/${encodeURIComponent(userId)}`)
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Get collections failed (${res.status}): ${text}`)
   }
   return res.json()
 }
@@ -201,12 +229,16 @@ export async function pollTaskUntilDone(
   maxAttempts: number = 120
 ): Promise<TasksListResponse['tasks'][0] | null> {
   for (let i = 0; i < maxAttempts; i++) {
-    const data = await getUserTasks(userId)
-    const task = data.tasks.find((t) => t.id === taskId)
-    if (!task) return null
+    try {
+      const data = await getUserTasks(userId)
+      const task = data.tasks.find((t) => t.id === taskId)
+      if (!task) return null
 
-    if (['completed', 'failed', 'exhausted'].includes(task.status)) {
-      return task
+      if (['completed', 'failed', 'exhausted'].includes(task.status)) {
+        return task
+      }
+    } catch (e) {
+      console.error('[POLL] Error fetching tasks:', e)
     }
 
     await new Promise((resolve) => setTimeout(resolve, intervalMs))
