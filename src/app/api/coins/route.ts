@@ -1,6 +1,9 @@
 /**
  * Coins API — Get balance, deduct, add
  * Server-side route that uses Supabase service role key
+ *
+ * TABLE: coin_balances (NOT usage_ledger!)
+ * COLUMNS: balance (not coins_balance), total_purchased (not coins_lifetime)
  */
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
@@ -14,16 +17,35 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServerClient()
   const { data, error } = await supabase
-    .from('usage_ledger')
+    .from('coin_balances')
     .select('*')
     .eq('user_id', userId)
     .single()
 
   if (error) {
+    // If no row found, return default free trial balance
+    if (error.code === 'PGRST116') {
+      return NextResponse.json({
+        balance: {
+          user_id: userId,
+          coins_balance: 50,
+          coins_reserved: 0,
+          coins_lifetime: 50,
+        }
+      })
+    }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ balance: data })
+  // Map database column names to what the frontend expects
+  const mapped = {
+    user_id: data.user_id,
+    coins_balance: data.balance,           // DB: balance → Frontend: coins_balance
+    coins_reserved: data.coins_reserved,
+    coins_lifetime: data.total_purchased,  // DB: total_purchased → Frontend: coins_lifetime
+  }
+
+  return NextResponse.json({ balance: mapped })
 }
 
 export async function POST(req: NextRequest) {
