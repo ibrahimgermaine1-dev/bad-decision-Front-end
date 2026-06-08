@@ -97,21 +97,40 @@ export default function BadDecisionAI() {
           setTier('free')
         }
 
-        // Fetch search tasks (collections)
-        const tasksRes = await fetch(`${BACKEND_URL}/api/tasks/${encodeURIComponent(userId!)}`)
-        if (tasksRes.ok) {
-          const tasksData = await tasksRes.json()
-          if (tasksData.tasks && tasksData.tasks.length > 0) {
-            const collections = tasksData.tasks
-              .filter((task: any) => task.status === 'completed')
-              .map((task: any) => ({
-                id: task.id,
-                name: task.query || 'Untitled Search',
-                task_type: task.task_type,
-                lead_count: 0,
-                created_at: task.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+        // Fetch collections from the new /api/collections endpoint
+        try {
+          const collectionsRes = await fetch(`${BACKEND_URL}/api/collections/${encodeURIComponent(userId!)}`)
+          if (collectionsRes.ok) {
+            const collectionsData = await collectionsRes.json()
+            if (collectionsData.collections && collectionsData.collections.length > 0) {
+              const collections = collectionsData.collections.map((c: any) => ({
+                id: c.id,
+                name: c.name || 'Untitled Search',
+                task_type: c.task_type,
+                lead_count: c.lead_count || 0,
+                created_at: c.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
               }))
-            setCollections(collections)
+              setCollections(collections)
+            }
+          }
+        } catch (colErr) {
+          console.error('[APP] Error fetching collections:', colErr)
+          // Fallback: fetch tasks and use task IDs (backend leads endpoint supports it)
+          const tasksRes = await fetch(`${BACKEND_URL}/api/tasks/${encodeURIComponent(userId!)}`)
+          if (tasksRes.ok) {
+            const tasksData = await tasksRes.json()
+            if (tasksData.tasks && tasksData.tasks.length > 0) {
+              const collections = tasksData.tasks
+                .filter((task: any) => task.status === 'completed')
+                .map((task: any) => ({
+                  id: task.id,
+                  name: task.query || 'Untitled Search',
+                  task_type: task.task_type,
+                  lead_count: 0,
+                  created_at: task.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+                }))
+              setCollections(collections)
+            }
           }
         }
       } catch (err) {
