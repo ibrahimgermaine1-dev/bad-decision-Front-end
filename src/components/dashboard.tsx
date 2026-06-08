@@ -14,7 +14,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth, useUser, UserButton, SignOutButton } from '@clerk/nextjs'
 import { useAppStore, type EngineType, type Lead, type Collection } from '@/stores/app-store'
-import { createTask, getUserTasks, getCollectionLeads, addCoins, pollTaskUntilDone } from '@/lib/backend'
+import { createTask, getUserTasks, getCollectionLeads, getUserCollections, addCoins, pollTaskUntilDone } from '@/lib/backend'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://bad-decision-backend-main.onrender.com'
 
@@ -113,7 +113,9 @@ export function DashboardShell() {
         throw new Error('Task creation failed')
       }
 
-      const taskId = result.task.id || result.task[0]?.id
+      // Extract task ID — backend returns an array from Supabase insert
+      const taskData = result.task as any
+      const taskId = taskData.id || (Array.isArray(taskData) ? taskData[0]?.id : null)
       if (!taskId) {
         throw new Error('No task ID returned')
       }
@@ -137,23 +139,28 @@ export function DashboardShell() {
         setCoinBalance(newBalance)
       }
 
-      // Step 4: Refresh collections
-      const tasksData = await getUserTasks(userId)
-      if (tasksData.tasks && tasksData.tasks.length > 0) {
-        const updatedCollections = tasksData.tasks
-          .filter((t: any) => t.status === 'completed')
-          .map((t: any) => ({
-            id: t.id,
-            name: t.query || 'Untitled Search',
-            task_type: t.task_type as EngineType,
-            lead_count: 0,
-            created_at: t.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+      // Step 4: Refresh collections using the proper collections endpoint
+      try {
+        const collectionsData = await getUserCollections(userId)
+        if (collectionsData.collections && collectionsData.collections.length > 0) {
+          const updatedCollections: Collection[] = collectionsData.collections.map((c: any) => ({
+            id: c.id,
+            name: c.name || 'Untitled Search',
+            task_type: c.task_type as EngineType,
+            lead_count: c.lead_count || 0,
+            created_at: c.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
           }))
-        setCollections(updatedCollections)
+          setCollections(updatedCollections)
 
-        if (updatedCollections.length > 0) {
-          setSelectedCollectionId(updatedCollections[0].id)
+          // Select the most recent collection
+          if (updatedCollections.length > 0) {
+            setSelectedCollectionId(updatedCollections[0].id)
+          }
         }
+      } catch (colErr) {
+        console.error('[DASHBOARD] Error loading collections:', colErr)
+        // Fallback: use task ID to load leads (backend supports it now)
+        setSelectedCollectionId(taskId)
       }
 
       setView('dashboard-results')
@@ -290,7 +297,7 @@ function Sidebar() {
                 }`}
               >
                 <div className="truncate">{c.name}</div>
-                <div className="text-xs text-slate/40 mt-0.5">{c.task_type} · {c.created_at}</div>
+                <div className="text-xs text-slate/40 mt-0.5">{c.task_type} · {c.lead_count} leads · {c.created_at}</div>
               </button>
             ))}
           </div>
@@ -455,7 +462,7 @@ function SearchingState() {
 // ── Results Panel ──────────────────────────────────────────────────────────────
 
 function ResultsPanel() {
-  const { leads, taskStatus, searchQuery, setView } = useAppStore()
+  const { leads, taskStatus, searchQuery, setView, currentTaskId } = useAppStore()
 
   if (taskStatus === 'failed') {
     return (
@@ -497,10 +504,22 @@ function ResultsPanel() {
     )
   }
 
+  // Count how many leads have actual contact data
+  const leadsWithContact = leads.filter((l) =>
+    l.verified_email !== 'ABSENT' || l.phone !== 'ABSENT' || l.dm_name !== 'ABSENT' || l.linkedin !== 'ABSENT'
+  )
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-slate">{leads.length} Leads Found</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-slate">{leads.length} Leads Found</h2>
+          {leadsWithContact.length < leads.length && (
+            <p className="text-xs text-slate/40 mt-1">
+              {leadsWithContact.length} with contact info · {leads.length - leadsWithContact.length} with basic data only
+            </p>
+          )}
+        </div>
         <div className="flex gap-2">
           <button
             onClick={() => setView('dashboard-idle')}
@@ -548,6 +567,9 @@ function ResultsPanel() {
                       <a href={lead.website_url} target="_blank" rel="noopener noreferrer" className="text-xs text-royal hover:underline">
                         {lead.website_url}
                       </a>
+                    )}
+                    {lead.address && lead.address !== 'ABSENT' && (
+                      <div className="text-xs text-slate/40 mt-0.5">{lead.address}</div>
                     )}
                   </td>
                   <td className="px-4 py-3">
