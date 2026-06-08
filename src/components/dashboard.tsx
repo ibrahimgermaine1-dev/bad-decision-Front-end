@@ -4,11 +4,15 @@
  *
  * Uses the FastAPI backend directly — no Supabase client in the frontend.
  * All data flows through the backend API for consistency.
+ *
+ * TABLE: coin_balances (NOT usage_ledger!)
+ * Backend GET /api/coins/{user_id} returns mapped column names:
+ *   coins_balance (from balance), coins_reserved, coins_lifetime (from total_purchased)
  */
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useAuth, useUser, UserButton } from '@clerk/nextjs'
+import { useAuth, useUser, UserButton, SignOutButton } from '@clerk/nextjs'
 import { useAppStore, type EngineType, type Lead, type Collection } from '@/stores/app-store'
 import { createTask, getUserTasks, getCollectionLeads, addCoins, pollTaskUntilDone } from '@/lib/backend'
 
@@ -28,7 +32,7 @@ const ENGINES: { type: EngineType; label: string; icon: string; desc: string }[]
  * No npm package needed — the official Paystack approach.
  * CDN: https://js.paystack.co/v2/inline.js
  */
-function getPaystackPop(): Promise<any> {
+function getPaystackPOP(): Promise<any> {
   return new Promise((resolve, reject) => {
     if ((window as any).PaystackPop) {
       resolve((window as any).PaystackPop)
@@ -38,7 +42,6 @@ function getPaystackPop(): Promise<any> {
     script.src = 'https://js.paystack.co/v2/inline.js'
     script.async = true
     script.onload = () => {
-      // Small delay to ensure PaystackPop is registered
       setTimeout(() => {
         if ((window as any).PaystackPop) {
           resolve((window as any).PaystackPop)
@@ -296,7 +299,9 @@ function Sidebar() {
 
       {/* Bottom links */}
       <div className="p-3 border-t border-border space-y-1">
-        <SidebarButton active={false} onClick={() => setView('pricing')} icon="💰" label="Pricing" />
+        <SidebarButton active={view === 'pricing'} onClick={() => setView('pricing')} icon="💰" label="Pricing" />
+        <SidebarButton active={view === 'faq'} onClick={() => setView('faq')} icon="❓" label="FAQ" />
+        <SidebarButton active={false} onClick={() => setView('landing')} icon="🏠" label="Home" />
       </div>
     </aside>
   )
@@ -327,7 +332,6 @@ function MobileSidebarToggle() {
       </button>
       {open && (
         <>
-          {/* Backdrop */}
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute top-12 left-0 w-64 bg-white border border-border rounded-lg shadow-xl z-50 py-2">
             <div className="px-4 py-2 border-b border-border flex items-center gap-2 text-sm">
@@ -337,6 +341,11 @@ function MobileSidebarToggle() {
             <button onClick={() => { setView('dashboard-idle'); setOpen(false) }} className="block w-full text-left px-4 py-2 text-sm hover:bg-ghost">🔍 New Search</button>
             <button onClick={() => { setView('dashboard-coin-vault'); setOpen(false) }} className="block w-full text-left px-4 py-2 text-sm hover:bg-ghost">🪙 Coin Vault</button>
             <button onClick={() => { setView('dashboard-support'); setOpen(false) }} className="block w-full text-left px-4 py-2 text-sm hover:bg-ghost">💬 Support</button>
+            <div className="border-t border-border mt-1 pt-1">
+              <button onClick={() => { setView('pricing'); setOpen(false) }} className="block w-full text-left px-4 py-2 text-sm hover:bg-ghost">💰 Pricing</button>
+              <button onClick={() => { setView('faq'); setOpen(false) }} className="block w-full text-left px-4 py-2 text-sm hover:bg-ghost">❓ FAQ</button>
+              <button onClick={() => { setView('landing'); setOpen(false) }} className="block w-full text-left px-4 py-2 text-sm hover:bg-ghost">🏠 Home</button>
+            </div>
             {collections.length > 0 && (
               <div className="border-t border-border mt-1 pt-1">
                 <div className="px-4 py-1 text-xs text-slate/40 uppercase">Past Searches</div>
@@ -492,22 +501,30 @@ function ResultsPanel() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-slate">{leads.length} Leads Found</h2>
-        <button
-          onClick={() => {
-            const headers = ['Company', 'Website', 'DM Name', 'Position', 'Email', 'Phone', 'LinkedIn']
-            const rows = leads.map((l) => [l.company_name, l.website_url, l.dm_name, l.dm_position, l.verified_email, l.phone, l.linkedin])
-            const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n')
-            const blob = new Blob([csv], { type: 'text/csv' })
-            const url = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = 'bad-decision-leads.csv'
-            a.click()
-          }}
-          className="px-4 py-2 border border-border rounded-lg text-sm text-slate/60 hover:bg-ghost transition"
-        >
-          Export CSV
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setView('dashboard-idle')}
+            className="px-4 py-2 border border-border rounded-lg text-sm text-slate/60 hover:bg-ghost transition"
+          >
+            New Search
+          </button>
+          <button
+            onClick={() => {
+              const headers = ['Company', 'Website', 'DM Name', 'Position', 'Email', 'Phone', 'LinkedIn']
+              const rows = leads.map((l) => [l.company_name, l.website_url, l.dm_name, l.dm_position, l.verified_email, l.phone, l.linkedin])
+              const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n')
+              const blob = new Blob([csv], { type: 'text/csv' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = 'bad-decision-leads.csv'
+              a.click()
+            }}
+            className="px-4 py-2 bg-royal text-white rounded-lg text-sm font-medium hover:bg-royal-hover transition"
+          >
+            Export CSV
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-border overflow-hidden">
@@ -614,13 +631,13 @@ function CoinVault() {
     setMsg(null)
 
     try {
-      const PaystackPop = await getPaystackPop()
+      const PaystackPop = await getPaystackPOP()
       const amount = isNGN ? pkg.priceNGN : pkg.priceUSD
 
       PaystackPop.setup({
         key: paystackKey,
         email: user?.primaryEmailAddress?.emailAddress || '',
-        amount: amount * 100, // Paystack expects kobo/cents
+        amount: amount * 100,
         currency: isNGN ? 'NGN' : 'USD',
         metadata: {
           coins: pkg.coins,
@@ -633,9 +650,6 @@ function CoinVault() {
         callback: async (response: { reference: string }) => {
           console.log('[PAYSTACK] Payment successful:', response.reference)
 
-          // Call the Paystack webhook to verify and add coins
-          // The webhook at /api/webhooks/paystack handles this server-side
-          // But we also add coins client-side as a quick UX update
           try {
             await addCoins(userId, pkg.coins)
           } catch (e) {
