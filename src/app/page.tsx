@@ -34,19 +34,19 @@ export default function BadDecisionAI() {
   // Track the last userId we fetched data for, to avoid re-fetching
   const lastFetchedUserId = useRef<string | null>(null)
 
-  // Sync Clerk auth state with app store — but only on meaningful changes
+  // Sync Clerk auth state with app store
   useEffect(() => {
     if (!isLoaded) return
 
     if (isSignedIn && userId) {
       setAuthenticated(true)
-      // Only redirect to dashboard if user is on the auth pages
-      if (['signup', 'signin'].includes(view)) {
+      // If user is signed in and on auth/landing pages, redirect to dashboard
+      if (['signup', 'signin', 'landing'].includes(view)) {
         setView('dashboard-idle')
       }
     } else {
       setAuthenticated(false)
-      // Only redirect away from dashboard if NOT signed in
+      // If not signed in and on dashboard, redirect to landing
       if (view.startsWith('dashboard')) {
         setView('landing')
       }
@@ -78,9 +78,9 @@ export default function BadDecisionAI() {
 
           if (profileData.ledger) {
             setCoinBalance({
-              coins_balance: profileData.ledger.coins_balance ?? 0,
+              coins_balance: profileData.ledger.coins_balance ?? 50,
               coins_reserved: profileData.ledger.coins_reserved ?? 0,
-              coins_lifetime: profileData.ledger.coins_lifetime ?? 0,
+              coins_lifetime: profileData.ledger.coins_lifetime ?? 50,
             })
           } else {
             setCoinBalance({ coins_balance: 50, coins_reserved: 0, coins_lifetime: 50 })
