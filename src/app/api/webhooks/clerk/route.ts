@@ -1,14 +1,18 @@
 /**
- * Clerk Webhook — Auto-create profile + usage_ledger on sign-up
+ * Clerk Webhook — Auto-create profile + coin_balances on sign-up
  *
  * When a new user signs up via Clerk, this webhook:
  * 1. Verifies the Svix signature (security check)
  * 2. Creates a profile row with free tier
- * 3. Creates a usage_ledger row with 50 free coins
+ * 3. Creates a coin_balances row with 50 free coins
  *
  * IMPORTANT: Clerk user IDs (like "user_3EpAbGzlWhXf8l8H1clTpAxaDY0")
- * are TEXT, not UUIDs. The profiles.id and usage_ledger.user_id columns
- * must be TEXT type (not UUID) for this to work.
+ * are TEXT, not UUIDs. The profiles.id and coin_balances.user_id columns
+ * are TEXT type (not UUID) for this to work.
+ *
+ * TABLE: coin_balances (NOT usage_ledger!)
+ * COLUMNS: user_id, balance (not coins_balance!), coins_reserved,
+ *          total_purchased (not coins_lifetime!)
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase-client'
@@ -89,23 +93,41 @@ export async function POST(req: NextRequest) {
     }
 
     // ============================================================
-    // STEP 4: Create usage_ledger with 50 free coins
+    // STEP 4: Create coin_balances with 50 free coins
+    // TABLE: coin_balances (NOT usage_ledger!)
+    // COLUMNS: balance (not coins_balance), total_purchased (not coins_lifetime)
     // ============================================================
-    const { error: ledgerError } = await supabase
-      .from('usage_ledger')
+    const { error: coinError } = await supabase
+      .from('coin_balances')
       .insert({
-        user_id: userId,  // TEXT column — "user_xxx" works fine
-        coins_balance: 50,
+        user_id: userId,          // TEXT column — "user_xxx" works fine
+        balance: 50,              // NOT coins_balance!
         coins_reserved: 0,
-        coins_lifetime: 50,
+        total_purchased: 50,      // NOT coins_lifetime!
       })
 
-    if (ledgerError) {
-      console.error('[CLERK_WEBHOOK] Ledger creation error:', ledgerError)
+    if (coinError) {
+      console.error('[CLERK_WEBHOOK] Coin balance creation error:', coinError)
       // Duplicate key is ok (might already exist from backend fallback)
-      if (!ledgerError.message.includes('duplicate') && !ledgerError.message.includes('unique')) {
-        return NextResponse.json({ error: ledgerError.message }, { status: 500 })
+      if (!coinError.message.includes('duplicate') && !coinError.message.includes('unique')) {
+        return NextResponse.json({ error: coinError.message }, { status: 500 })
       }
+    }
+
+    // ============================================================
+    // STEP 5: Log the signup bonus transaction
+    // ============================================================
+    try {
+      await supabase
+        .from('coin_transactions')
+        .insert({
+          user_id: userId,
+          amount: 50,
+          transaction_type: 'signup_bonus',
+          description: 'Free 50 coins on account creation',
+        })
+    } catch (e) {
+      console.error('[CLERK_WEBHOOK] Transaction log error (non-critical):', e)
     }
 
     console.log(`[CLERK_WEBHOOK] Successfully set up user: ${userId} with 50 free coins`)
