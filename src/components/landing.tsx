@@ -9,10 +9,12 @@
 'use client'
 
 import { useState } from 'react'
+import { useAuth } from '@clerk/nextjs'
 import { useAppStore } from '@/stores/app-store'
 
 export function LandingPage() {
   const setView = useAppStore((s) => s.setView)
+  const { isSignedIn } = useAuth()
 
   return (
     <div className="min-h-screen bg-white">
@@ -30,12 +32,21 @@ export function LandingPage() {
               <button onClick={() => setView('pricing')} className="hover:text-royal transition">Pricing</button>
               <button onClick={() => setView('faq')} className="hover:text-royal transition">FAQ</button>
               <button onClick={() => setView('contact')} className="hover:text-royal transition">Contact</button>
-              <button
-                onClick={() => setView('signin')}
-                className="px-4 py-2 bg-royal text-white rounded-lg hover:bg-royal-hover transition font-medium"
-              >
-                Sign In
-              </button>
+              {isSignedIn ? (
+                <button
+                  onClick={() => setView('dashboard-idle')}
+                  className="px-4 py-2 bg-royal text-white rounded-lg hover:bg-royal-hover transition font-medium"
+                >
+                  Dashboard
+                </button>
+              ) : (
+                <button
+                  onClick={() => setView('signin')}
+                  className="px-4 py-2 bg-royal text-white rounded-lg hover:bg-royal-hover transition font-medium"
+                >
+                  Sign In
+                </button>
+              )}
             </div>
             {/* Mobile hamburger */}
             <MobileNav />
@@ -61,12 +72,21 @@ export function LandingPage() {
               who actually need your services.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <button
-                onClick={() => setView('signup')}
-                className="w-full sm:w-auto px-8 py-4 bg-royal text-white rounded-xl hover:bg-royal-hover transition font-semibold text-lg shadow-lg shadow-royal/25"
-              >
-                Start Free — 50 Coins
-              </button>
+              {isSignedIn ? (
+                <button
+                  onClick={() => setView('dashboard-idle')}
+                  className="w-full sm:w-auto px-8 py-4 bg-royal text-white rounded-xl hover:bg-royal-hover transition font-semibold text-lg shadow-lg shadow-royal/25"
+                >
+                  Go to Dashboard
+                </button>
+              ) : (
+                <button
+                  onClick={() => setView('signup')}
+                  className="w-full sm:w-auto px-8 py-4 bg-royal text-white rounded-xl hover:bg-royal-hover transition font-semibold text-lg shadow-lg shadow-royal/25"
+                >
+                  Start Free — 50 Coins
+                </button>
+              )}
               <button
                 onClick={() => setView('pricing')}
                 className="w-full sm:w-auto px-8 py-4 border border-border text-slate rounded-xl hover:bg-ghost transition font-semibold text-lg"
@@ -217,10 +237,10 @@ export function LandingPage() {
             Sign up free and get 50 coins to start finding real leads immediately. No credit card required.
           </p>
           <button
-            onClick={() => setView('signup')}
+            onClick={() => isSignedIn ? setView('dashboard-idle') : setView('signup')}
             className="px-8 py-4 bg-royal text-white rounded-xl hover:bg-royal-hover transition font-semibold text-lg shadow-lg shadow-royal/25"
           >
-            Get Started Free
+            {isSignedIn ? 'Go to Dashboard' : 'Get Started Free'}
           </button>
         </div>
       </section>
@@ -244,6 +264,7 @@ export function LandingPage() {
 
 function MobileNav() {
   const setView = useAppStore((s) => s.setView)
+  const { isSignedIn } = useAuth()
   const [open, setOpen] = useState(false)
 
   return (
@@ -264,7 +285,11 @@ function MobileNav() {
             <button onClick={() => { setView('pricing'); setOpen(false) }} className="block w-full text-left px-4 py-2 text-sm hover:bg-ghost">Pricing</button>
             <button onClick={() => { setView('faq'); setOpen(false) }} className="block w-full text-left px-4 py-2 text-sm hover:bg-ghost">FAQ</button>
             <button onClick={() => { setView('contact'); setOpen(false) }} className="block w-full text-left px-4 py-2 text-sm hover:bg-ghost">Contact</button>
-            <button onClick={() => { setView('signin'); setOpen(false) }} className="block w-full text-left px-4 py-2 text-sm text-royal font-medium hover:bg-ghost">Sign In</button>
+            {isSignedIn ? (
+              <button onClick={() => { setView('dashboard-idle'); setOpen(false) }} className="block w-full text-left px-4 py-2 text-sm text-royal font-medium hover:bg-ghost">Dashboard</button>
+            ) : (
+              <button onClick={() => { setView('signin'); setOpen(false) }} className="block w-full text-left px-4 py-2 text-sm text-royal font-medium hover:bg-ghost">Sign In</button>
+            )}
           </div>
         </>
       )}
