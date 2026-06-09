@@ -6,6 +6,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase-client'
 
 export async function GET(req: NextRequest) {
+  // Guard: skip if Supabase env vars are missing (e.g. during build)
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json({ error: 'Server configuration incomplete' }, { status: 503 })
+  }
+
   const userId = req.nextUrl.searchParams.get('user_id')
   if (!userId) {
     return NextResponse.json({ error: 'user_id required' }, { status: 400 })
@@ -26,6 +31,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Guard: skip if Supabase env vars are missing (e.g. during build)
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json({ error: 'Server configuration incomplete' }, { status: 503 })
+  }
+
   const { user_id, action, amount } = await req.json()
 
   if (!user_id || !action || !amount) {

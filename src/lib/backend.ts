@@ -1,5 +1,5 @@
 /**
- * Bad Decision AI — Backend API Client
+ * Bad Decision — Backend API Client
  * Connects to the Python backend on Render.
  * All search tasks and lead fetching go through here.
  */

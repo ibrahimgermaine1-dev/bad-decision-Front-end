@@ -1,5 +1,5 @@
 /**
- * Bad Decision AI — Application Store
+ * Bad Decision — Application Store
  * Manages navigation, coins, search, and dashboard state
  */
 import { create } from 'zustand'

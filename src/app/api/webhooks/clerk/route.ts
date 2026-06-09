@@ -11,6 +11,11 @@ import { createServerClient } from '@/lib/supabase-client'
 const FREE_COINS = 250
 
 export async function POST(req: NextRequest) {
+  // Guard: skip if Supabase env vars are missing (e.g. during build)
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json({ error: 'Server configuration incomplete' }, { status: 503 })
+  }
+
   try {
     const body = await req.json()
     const { type, data } = body

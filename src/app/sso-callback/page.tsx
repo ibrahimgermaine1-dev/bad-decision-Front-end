@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic'
 export default function SSOCallback() {
   return (
     <AuthenticateWithRedirectCallback
-      signInForceRedirectUrl="/"
-      signUpForceRedirectUrl="/"
+      signInForceRedirectUrl="/dashboard"
+      signUpForceRedirectUrl="/dashboard"
     />
   )
 }

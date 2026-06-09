@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { Navigation } from '@/components/navigation'
 import { ThemeProvider } from '@/components/theme-provider'
+import { MainContent } from '@/components/main-content'
 import './globals.css'
 
 const inter = Inter({
@@ -37,9 +38,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-sans antialiased bg-[var(--bg-primary)] text-[var(--text-primary)] min-h-screen">
         <ThemeProvider>
           <Navigation />
-          <main className="pt-16">
+          <MainContent>
             {children}
-          </main>
+          </MainContent>
         </ThemeProvider>
       </body>
     </html>

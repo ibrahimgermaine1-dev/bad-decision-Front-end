@@ -154,7 +154,7 @@ export function AuthPage() {
             <div className="w-10 h-10 bg-[var(--color-accent)] rounded-xl flex items-center justify-center">
               <span className="text-white font-bold">BD</span>
             </div>
-            <span className="text-xl font-bold text-[var(--text-primary)]">Bad Decision AI</span>
+            <span className="text-xl font-bold text-[var(--text-primary)]">Bad Decision</span>
           </div>
         </div>
 

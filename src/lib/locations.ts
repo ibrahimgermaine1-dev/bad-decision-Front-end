@@ -1,5 +1,5 @@
 /**
- * BAD DECISION AI — Cascading Location Data
+ * BAD DECISION — Cascading Location Data
  * Comprehensive continent → country → state/region mapping
  */
 

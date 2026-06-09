@@ -1,5 +1,5 @@
 /**
- * Bad Decision AI — Pricing Configuration
+ * Bad Decision — Pricing Configuration
  * All tier definitions, coin add-ons, and currency logic.
  */
 

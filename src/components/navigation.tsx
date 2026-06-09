@@ -23,6 +23,9 @@ export function Navigation() {
 
   const isDashboard = pathname?.startsWith('/dashboard')
 
+  // Dashboard has its own sidebar — hide top nav on dashboard pages
+  if (isDashboard) return null
+
   return (
     <motion.nav
       initial={{ y: -20, opacity: 0 }}
@@ -38,7 +41,6 @@ export function Navigation() {
             </div>
             <span className="font-bold text-lg text-[var(--text-primary)] tracking-tight">
               Bad Decision
-              <span className="gradient-text"> AI</span>
             </span>
           </Link>
 
@@ -94,13 +96,13 @@ export function Navigation() {
             ) : (
               <div className="flex items-center gap-2">
                 <Link
-                  href="/dashboard"
+                  href="/sign-in"
                   className="px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                 >
                   Sign In
                 </Link>
                 <Link
-                  href="/dashboard"
+                  href="/sign-up"
                   className="px-4 py-2 text-sm font-medium text-white rounded-lg bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-purple)] hover:opacity-90 transition-opacity"
                 >
                   Get Started
