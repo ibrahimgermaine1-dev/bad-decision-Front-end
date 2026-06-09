@@ -234,7 +234,7 @@ export default function LandingPage() {
               icon={<MessageSquare className="w-6 h-6" />}
               title="Social Intent"
               tagline="Find people asking for help right now"
-              description="Someone just posted "I need a plumber" or "looking for a good accountant" on social media. They posted it today. You reply today. That is not cold outreach. That is answering a question with your business card. You go from search to signed contract faster than any other method."
+              description={'Someone just posted "I need a plumber" or "looking for a good accountant" on social media. They posted it today. You reply today. That is not cold outreach. That is answering a question with your business card. You go from search to signed contract faster than any other method.'}
               color="var(--color-green)"
               bgColor="var(--color-green-bg)"
               borderColor="rgba(34, 197, 94, 0.2)"
