@@ -1,7 +1,6 @@
 'use client'
 
 import { SignIn } from '@clerk/nextjs'
-import { CLERK_SIGN_IN_APPEARANCE } from '@/components/safe-clerk-auth'
 
 export default function SignInPage() {
   return (
@@ -16,7 +15,6 @@ export default function SignInPage() {
           </div>
         </div>
         <SignIn
-          appearance={CLERK_SIGN_IN_APPEARANCE}
           routing="path"
           path="/sign-in"
           signUpUrl="/sign-up"

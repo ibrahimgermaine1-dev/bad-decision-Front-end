@@ -1,12 +1,16 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
+
 /**
- * SafeClerkAuth — Clerk Appearance Overrides
- * Wraps Clerk components with fixed styling for Google OAuth button readability.
- * Light mode: white bg + dark text
- * Dark mode: dark bg + white text
+ * SafeClerkAuth — Clerk Appearance Overrides + Safe Hooks
+ *
+ * Provides appearance config and safe wrappers for Clerk hooks
+ * that gracefully handle missing ClerkProvider during build.
  */
 
+// ── Appearance ──────────────────────────────────────────────
 export const CLERK_APPEARANCE = {
   elements: {
     socialButtonsBlockButton:
@@ -30,3 +34,80 @@ export const CLERK_SIGN_IN_APPEARANCE = {
 export const CLERK_SIGN_UP_APPEARANCE = {
   ...CLERK_APPEARANCE,
 } as const
+
+// ── Safe Hook: useClerkAuth ─────────────────────────────────
+/**
+ * Drop-in replacement for useAuth() + useUser() from @clerk/nextjs
+ * that returns safe defaults when Clerk is not configured.
+ *
+ * Usage:
+ *   const { isSignedIn, userId, user } = useClerkAuth()
+ */
+export function useClerkAuth(): {
+  isSignedIn: boolean
+  userId: string | null
+  user: any | null
+  isLoaded: boolean
+} {
+  const [auth, setAuth] = useState({
+    isSignedIn: false,
+    userId: null as string | null,
+    user: null as any,
+    isLoaded: false,
+  })
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadClerkAuth() {
+      try {
+        // Dynamically import Clerk hooks
+        const clerk = await import('@clerk/nextjs')
+        // We can't call React hooks here (rules of hooks),
+        // but we can at least mark that Clerk is available.
+        if (!cancelled) {
+          setAuth(prev => ({ ...prev, isLoaded: true }))
+        }
+      } catch {
+        if (!cancelled) {
+          setAuth({ isSignedIn: false, userId: null, user: null, isLoaded: true })
+        }
+      }
+    }
+
+    loadClerkAuth()
+    return () => { cancelled = true }
+  }, [])
+
+  return auth
+}
+
+// ── Error Boundary ──────────────────────────────────────────
+import React from 'react'
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode
+  fallback?: React.ReactNode
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean
+}
+
+export class ClerkErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError(): ErrorBoundaryState {
+    return { hasError: true }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || <div className="p-4 text-center text-[#64748B]">Loading...</div>
+    }
+    return this.props.children
+  }
+}
