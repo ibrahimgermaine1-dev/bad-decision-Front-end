@@ -2,43 +2,51 @@
  * Supabase client for the Next.js frontend.
  * Uses the ANON key (limited access, respects RLS).
  * The service role key is only used in API routes (server-side).
+ *
+ * IMPORTANT: All exports are lazy — Supabase is only initialized when
+ * actually accessed, not at module import time. This prevents build errors
+ * when environment variables are not available.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-// Lazy singleton — only creates the client when first accessed
-let _supabase: SupabaseClient | null = null
-
-function getSupabaseClient(): SupabaseClient {
-  if (!_supabase) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    if (!url || !key) {
-      // Return a no-op client that won't throw at build time
-      // Actual API calls will fail gracefully if env vars are missing
-      _supabase = createClient('https://placeholder.supabase.co', 'placeholder-key')
-    } else {
-      _supabase = createClient(url, key)
-    }
-  }
-  return _supabase
+/**
+ * Check if Supabase is properly configured with real credentials.
+ */
+export function isSupabaseConfigured(): boolean {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  return !!(url && key && !url.includes('placeholder'))
 }
 
-// Export as a getter so it's not instantiated at module load time
-export const supabase = new Proxy({} as SupabaseClient, {
-  get(_target, prop) {
-    return (getSupabaseClient() as any)[prop]
-  },
-})
+/**
+ * Get the Supabase client (lazy singleton).
+ * Returns null if env vars are not configured.
+ */
+let _supabaseInstance: SupabaseClient | null | undefined = undefined
+
+export function getSupabase(): SupabaseClient | null {
+  if (_supabaseInstance === undefined) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!url || !key || url.includes('placeholder')) {
+      _supabaseInstance = null
+    } else {
+      _supabaseInstance = createClient(url, key)
+    }
+  }
+  return _supabaseInstance
+}
 
 /**
  * Create a Supabase client with service role key (bypasses RLS).
  * ONLY use this in server-side API routes — never in client components.
+ * Throws if env vars are not configured.
  */
-export function createServerClient() {
+export function createServerClient(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) {
-    throw new Error('Supabase URL or service role key is not configured')
+  if (!url || !key || url.includes('placeholder')) {
+    throw new Error('Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.')
   }
   return createClient(url, key)
 }

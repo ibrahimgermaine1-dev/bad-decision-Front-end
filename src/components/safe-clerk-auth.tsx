@@ -4,8 +4,15 @@
  * Safe Clerk Auth Components
  * These components wrap Clerk's SignIn/SignUp with error boundaries.
  * If Clerk is not configured, they show a helpful fallback UI instead of crashing.
+ *
+ * Key features:
+ * - Error boundary catches Clerk runtime errors
+ * - Graceful fallback when Clerk env vars missing
+ * - Themed appearance matching app design
+ * - Explicit sign-in ↔ sign-up switch links below the form
  */
 import { Component, ReactNode } from 'react'
+import Link from 'next/link'
 import { isClerkConfigured } from '@/lib/clerk-config'
 import { SignIn } from '@clerk/nextjs'
 import { SignUp } from '@clerk/nextjs'
@@ -49,6 +56,16 @@ const clerkAppearance = {
     formFieldLabel: 'text-[var(--text-secondary)] font-medium',
     identityPreviewText: 'text-[var(--text-primary)]',
     alertText: 'text-sm',
+    footerAction: 'text-[var(--text-secondary)] text-sm',
+  },
+  variables: {
+    colorPrimary: '#6366f1',
+    colorBackground: 'var(--bg-primary)',
+    colorInputBackground: 'var(--bg-surface)',
+    colorInputText: 'var(--text-primary)',
+    colorText: 'var(--text-primary)',
+    colorTextSecondary: 'var(--text-secondary)',
+    colorNeutral: 'var(--border-color)',
   },
 }
 
@@ -138,7 +155,15 @@ export function SafeSignIn() {
         forceSignUpUrl="/sign-up"
         fallbackRedirectUrl="/dashboard"
         signUpFallbackRedirectUrl="/dashboard"
+        afterSignInUrl="/dashboard"
       />
+      {/* Explicit switch link below the form for clarity */}
+      <p className="text-center text-sm text-[var(--text-secondary)] mt-4">
+        Don&apos;t have an account?{' '}
+        <Link href="/sign-up" className="text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] font-medium">
+          Sign up for free
+        </Link>
+      </p>
     </ClerkErrorBoundary>
   )
 }
@@ -160,7 +185,15 @@ export function SafeSignUp() {
         forceSignInUrl="/sign-in"
         fallbackRedirectUrl="/dashboard"
         signInFallbackRedirectUrl="/dashboard"
+        afterSignUpUrl="/dashboard"
       />
+      {/* Explicit switch link below the form for clarity */}
+      <p className="text-center text-sm text-[var(--text-secondary)] mt-4">
+        Already have an account?{' '}
+        <Link href="/sign-in" className="text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] font-medium">
+          Sign in
+        </Link>
+      </p>
     </ClerkErrorBoundary>
   )
 }

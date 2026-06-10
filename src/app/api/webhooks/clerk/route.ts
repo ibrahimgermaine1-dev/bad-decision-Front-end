@@ -5,8 +5,9 @@
  * 2. Creates a usage_ledger row with 250 free coins
  * 3. Checks FingerprintJS hash to block duplicate devices
  */
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase-client'
 
 const FREE_COINS = 250
 
@@ -17,6 +18,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const { createServerClient } = await import('@/lib/supabase-client')
     const body = await req.json()
     const { type, data } = body
 

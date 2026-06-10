@@ -8,16 +8,18 @@
  *
  * Note: This is the primary webhook for all Paystack payments (NGN and USD).
  */
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase-client'
 
 export async function POST(req: NextRequest) {
-  try {
-    // Guard: skip if Supabase env vars are missing (e.g. during build)
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json({ error: 'Server configuration incomplete' }, { status: 503 })
-    }
+  // Guard: skip if Supabase env vars are missing (e.g. during build)
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json({ error: 'Server configuration incomplete' }, { status: 503 })
+  }
 
+  try {
+    const { createServerClient } = await import('@/lib/supabase-client')
     const body = await req.json()
 
     const { event, data } = body

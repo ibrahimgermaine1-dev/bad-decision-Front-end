@@ -2,8 +2,9 @@
  * Coins API — Get balance, deduct, add
  * Server-side route that uses Supabase service role key
  */
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase-client'
 
 export async function GET(req: NextRequest) {
   // Guard: skip if Supabase env vars are missing (e.g. during build)
@@ -16,6 +17,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'user_id required' }, { status: 400 })
   }
 
+  const { createServerClient } = await import('@/lib/supabase-client')
   const supabase = createServerClient()
   const { data, error } = await supabase
     .from('usage_ledger')
@@ -42,6 +44,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'user_id, action, and amount required' }, { status: 400 })
   }
 
+  const { createServerClient } = await import('@/lib/supabase-client')
   const supabase = createServerClient()
 
   if (action === 'deduct') {

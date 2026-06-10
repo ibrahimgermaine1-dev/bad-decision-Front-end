@@ -6,6 +6,12 @@
  * Handles missing Clerk gracefully — shows sign-in prompt.
  * Views: Search → Searching → Results + Inspector.
  * Payment: Paystack inline. Self-contained component.
+ *
+ * Uses a two-component pattern for Clerk hooks:
+ * - DashboardClient (this file): checks isClerkConfigured(), renders either
+ *   the signed-out prompt or DashboardWithClerk
+ * - DashboardWithClerk (in dashboard-clerk-wrapper.tsx): actually calls
+ *   useAuth/useUser/useClerk hooks — only mounted inside ClerkProvider
  */
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -20,22 +26,7 @@ import { createTask, getUserTasks, getCollectionLeads, pollTaskUntilDone } from 
 import { exportLeadsToCsv, downloadCsv } from '@/lib/csv-shield'
 import { locationData, getCountriesForContinent, getStatesForCountry } from '@/lib/locations'
 import { isClerkConfigured } from '@/lib/clerk-config'
-
-// Dynamically import Clerk hooks only if configured
-let useAuth: any = () => ({ isSignedIn: false, userId: null })
-let useUser: any = () => ({ user: null, isLoaded: false })
-let useClerk: any = () => ({ signOut: () => {} })
-
-if (typeof window !== 'undefined') {
-  try {
-    const clerk = require('@clerk/nextjs')
-    if (isClerkConfigured()) {
-      useAuth = clerk.useAuth
-      useUser = clerk.useUser
-      useClerk = clerk.useClerk
-    }
-  } catch {}
-}
+import { DashboardWithClerk } from './dashboard-clerk-wrapper'
 
 // ============================================================
 // COUNTRY FLAGS
@@ -131,12 +122,70 @@ function loadPaystackScript(onLoad?: () => void) {
 type DashboardView = 'search' | 'searching' | 'results'
 
 // ============================================================
-// MAIN DASHBOARD COMPONENT
+// MAIN DASHBOARD COMPONENT (exported)
 // ============================================================
 export default function DashboardClient() {
-  const { isSignedIn, userId } = useAuth()
-  const { user } = useUser()
-  const { signOut } = useClerk()
+  // If Clerk is not configured, show the sign-in prompt immediately
+  if (!isClerkConfigured()) {
+    return <UnauthenticatedGuard />
+  }
+
+  // Clerk is configured — render the wrapper that uses Clerk hooks
+  return <DashboardWithClerk />
+}
+
+// ============================================================
+// UNAUTHENTICATED GUARD — Show sign-in prompt
+// ============================================================
+function UnauthenticatedGuard() {
+  return (
+    <div className="h-screen flex items-center justify-center bg-[var(--bg-primary)]">
+      <div className="text-center max-w-md mx-auto px-4">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-purple)] flex items-center justify-center mx-auto mb-6 shadow-lg shadow-[var(--color-accent)]/20">
+          <span className="text-white font-bold text-lg">BD</span>
+        </div>
+        <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-2">Sign in to continue</h2>
+        <p className="text-sm text-[var(--text-secondary)] mb-6">
+          You need an account to access the dashboard and find verified leads.
+        </p>
+        <div className="flex flex-col gap-3">
+          <a
+            href="/sign-in"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-purple)] text-white text-sm font-semibold shadow-lg hover:shadow-xl transition-shadow"
+          >
+            Sign In
+          </a>
+          <a
+            href="/sign-up"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-[var(--border-color)] text-[var(--text-primary)] text-sm font-medium hover:bg-[var(--bg-surface)] transition-colors"
+          >
+            Create Account
+          </a>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// DASHBOARD CONTENT (shared by both Clerk and non-Clerk paths)
+// This is the actual dashboard UI, extracted so the Clerk wrapper
+// can pass auth state as props.
+// ============================================================
+export function DashboardContent({
+  isSignedIn,
+  userId,
+  user,
+  signOut,
+}: {
+  isSignedIn: boolean
+  userId: string | null
+  user: any
+  signOut: () => void
+}) {
+  if (!isSignedIn) {
+    return <UnauthenticatedGuard />
+  }
 
   const {
     coinBalance, setCoinBalance,
@@ -168,7 +217,8 @@ export default function DashboardClient() {
     let supabase: any
     try {
       const mod = require('@/lib/supabase-client')
-      supabase = mod.supabase
+      supabase = mod.getSupabase()
+      if (!supabase) return
     } catch { return }
 
     const refresh = async () => {
@@ -329,7 +379,8 @@ export default function DashboardClient() {
           if (userId) {
             try {
               const mod = require('@/lib/supabase-client')
-              const supabase = mod.supabase
+              const supabase = mod.getSupabase()
+              if (!supabase) return
               const { data } = await supabase
                 .from('usage_ledger')
                 .select('coins_balance, coins_reserved, coins_lifetime')
@@ -367,39 +418,6 @@ export default function DashboardClient() {
     () => ENGINE_CARDS.find(e => e.id === selectedEngine),
     [selectedEngine]
   )
-
-  // ============================================================
-  // UNAUTHENTICATED GUARD — Show sign-in prompt
-  // ============================================================
-  if (!isSignedIn) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-[var(--bg-primary)]">
-        <div className="text-center max-w-md mx-auto px-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-purple)] flex items-center justify-center mx-auto mb-6 shadow-lg shadow-[var(--color-accent)]/20">
-            <span className="text-white font-bold text-lg">BD</span>
-          </div>
-          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-2">Sign in to continue</h2>
-          <p className="text-sm text-[var(--text-secondary)] mb-6">
-            You need an account to access the dashboard and find verified leads.
-          </p>
-          <div className="flex flex-col gap-3">
-            <a
-              href="/sign-in"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-purple)] text-white text-sm font-semibold shadow-lg hover:shadow-xl transition-shadow"
-            >
-              Sign In
-            </a>
-            <a
-              href="/sign-up"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-[var(--border-color)] text-[var(--text-primary)] text-sm font-medium hover:bg-[var(--bg-surface)] transition-colors"
-            >
-              Create Account
-            </a>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   // ============================================================
   // RENDER — Authenticated Dashboard
