@@ -4,8 +4,11 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Coins, Check, HelpCircle } from 'lucide-react'
+import { ArrowLeft, Coins, Check, HelpCircle, AlertCircle } from 'lucide-react'
 import { PricingCard, CoinPackageCard } from '@/components/pricing-card'
+import { useAuth, useUser } from '@clerk/nextjs'
+import { initializePaystackPayment } from '@/lib/backend'
+import { isClerkConfigured } from '@/lib/clerk-config'
 
 const tiers = [
   {
@@ -65,23 +68,118 @@ const coinPackages = [
   { id: 'enterprise', name: 'Enterprise', coins: 2000, price: 60000, currency: '$' },
 ]
 
+// ============================================================
+// AUTH STATE — passed to PricingPageContent
+// ============================================================
+interface AuthState {
+  isSignedIn: boolean
+  userId: string
+  email: string
+}
+
+// ============================================================
+// CLERK AUTH HELPER — only mounted inside ClerkProvider
+// ============================================================
+function ClerkAuthHelper({ children }: { children: (auth: AuthState) => React.ReactNode }) {
+  const { isSignedIn } = useAuth()
+  const { user } = useUser()
+
+  const auth: AuthState = {
+    isSignedIn: !!isSignedIn,
+    userId: user?.id || '',
+    email: user?.emailAddresses?.[0]?.emailAddress || '',
+  }
+
+  return <>{children(auth)}</>
+}
+
+// ============================================================
+// MAIN PRICING PAGE — conditionally wraps with Clerk hooks
+// ============================================================
 export default function PricingPage() {
+  const clerkReady = isClerkConfigured()
+
+  if (clerkReady) {
+    return (
+      <ClerkAuthHelper>
+        {(auth) => <PricingPageContent auth={auth} />}
+      </ClerkAuthHelper>
+    )
+  }
+
+  // No Clerk configured — render with default (unsigned) auth state
+  return <PricingPageContent auth={{ isSignedIn: false, userId: '', email: '' }} />
+}
+
+// ============================================================
+// PRICING PAGE CONTENT — all UI + Paystack payment logic
+// ============================================================
+function PricingPageContent({ auth }: { auth: AuthState }) {
   const router = useRouter()
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const [showCoins, setShowCoins] = useState(false)
+  const [paymentError, setPaymentError] = useState<string | null>(null)
 
   const handleSelectPlan = async (planId: string) => {
+    setPaymentError(null)
+
+    // Explorer (free tier) — go straight to dashboard
     if (planId === 'explorer') {
       router.push('/dashboard')
       return
     }
-    // Redirect to sign-in if not authenticated — Paystack requires email
-    router.push(`/sign-up?redirect=/pricing&plan=${planId}`)
+
+    // Paid tiers — require sign-in
+    if (!auth.isSignedIn) {
+      router.push(`/sign-up?redirect=/pricing&plan=${planId}`)
+      return
+    }
+
+    // Signed in — initialize Paystack payment
+    setLoadingPlan(planId)
+    try {
+      const result = await initializePaystackPayment({
+        user_id: auth.userId,
+        email: auth.email,
+        plan_type: planId,
+      })
+      // Redirect to Paystack's hosted payment page
+      window.location.href = result.authorization_url
+    } catch (err: any) {
+      console.error('[PRICING] Paystack init failed:', err)
+      setPaymentError(
+        err?.message || 'Could not start payment. Please try again.'
+      )
+      setLoadingPlan(null)
+    }
   }
 
   const handleBuyCoins = async (packageId: string) => {
-    // Redirect to sign-in if not authenticated — Paystack requires email
-    router.push(`/sign-up?redirect=/pricing&coins=${packageId}`)
+    setPaymentError(null)
+
+    // Coin purchases require sign-in
+    if (!auth.isSignedIn) {
+      router.push(`/sign-up?redirect=/pricing&coins=${packageId}`)
+      return
+    }
+
+    // Signed in — initialize Paystack payment for coin package
+    setLoadingPlan(packageId)
+    try {
+      const result = await initializePaystackPayment({
+        user_id: auth.userId,
+        email: auth.email,
+        package_id: packageId,
+      })
+      // Redirect to Paystack's hosted payment page
+      window.location.href = result.authorization_url
+    } catch (err: any) {
+      console.error('[PRICING] Paystack coin purchase failed:', err)
+      setPaymentError(
+        err?.message || 'Could not start payment. Please try again.'
+      )
+      setLoadingPlan(null)
+    }
   }
 
   return (
@@ -110,6 +208,30 @@ export default function PricingPage() {
             </p>
           </motion.div>
         </div>
+
+        {/* Payment error banner */}
+        {paymentError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 max-w-3xl mx-auto"
+          >
+            <div className="flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+              <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-red-500">Payment Error</p>
+                <p className="text-sm text-[var(--text-secondary)] mt-0.5">{paymentError}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPaymentError(null)}
+                className="ml-auto text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+              >
+                &times;
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         {/* How Coins Work */}
         <motion.div

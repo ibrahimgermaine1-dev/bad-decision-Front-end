@@ -19,10 +19,10 @@ import {
   Target, MapPin, Globe, MessageSquare,
   Search, Coins, ArrowRight, CheckCircle2, Clock,
   Download, Settings, LogOut, Menu, X, ChevronDown,
-  Loader2, TrendingUp, ExternalLink, Shield, CreditCard, Plus, User, Moon, Sun,
+  Loader2, TrendingUp, ExternalLink, Shield, CreditCard, Plus, User, Moon, Sun, Zap, Crown, Sparkles,
 } from 'lucide-react'
 import { useAppStore, type EngineType, type Lead, type SmartCollection } from '@/stores/app-store'
-import { createTask, getUserTasks, getCollectionLeads, getLeadsByTaskId, pollTaskUntilDone, fetchPaystackPublicKey } from '@/lib/backend'
+import { createTask, getUserTasks, getCollectionLeads, getLeadsByTaskId, pollTaskUntilDone, fetchPaystackPublicKey, TaskCreateError, getUserProfile, initializePaystackPayment } from '@/lib/backend'
 import { exportLeadsToCsv, downloadCsv } from '@/lib/csv-shield'
 import { locationData, getCountriesForContinent, getStatesForCountry } from '@/lib/locations'
 import { isClerkConfigured } from '@/lib/clerk-config'
@@ -32,16 +32,51 @@ import { DashboardWithClerk } from './dashboard-clerk-wrapper'
 // COUNTRY FLAGS
 // ============================================================
 const countryFlags: Record<string, string> = {
+  // Africa
   nigeria: '🇳🇬', south_africa: '🇿🇦', kenya: '🇰🇪', egypt: '🇪🇬', ghana: '🇬🇭',
   ethiopia: '🇪🇹', tanzania: '🇹🇿', morocco: '🇲🇦', rwanda: '🇷🇼', uganda: '🇺🇬', cameroon: '🇨🇲',
+  algeria: '🇩🇿', angola: '🇦🇴', benin: '🇧🇯', botswana: '🇧🇼', burkina_faso: '🇧🇫', burundi: '🇧🇮',
+  cabo_verde: '🇨🇻', central_african_republic: '🇨🇫', chad: '🇹🇩', comoros: '🇰🇲', congo_brazzaville: '🇨🇬',
+  congo_drc: '🇨🇩', djibouti: '🇩🇯', equatorial_guinea: '🇬🇶', eritrea: '🇪🇷', eswatini: '🇸🇿',
+  gabon: '🇬🇦', gambia: '🇬🇲', guinea: '🇬🇳', guinea_bissau: '🇬🇼', ivory_coast: '🇨🇮',
+  lesotho: '🇱🇸', liberia: '🇱🇷', libya: '🇱🇾', madagascar: '🇲🇬', malawi: '🇲🇼', mali: '🇲🇱',
+  mauritania: '🇲🇷', mauritius: '🇲🇺', mozambique: '🇲🇿', namibia: '🇳🇦', niger: '🇳🇪',
+  sao_tome_and_principe: '🇸🇹', senegal: '🇸🇳', seychelles: '🇸🇨', sierra_leone: '🇸🇱', somalia: '🇸🇴',
+  south_sudan: '🇸🇸', sudan: '🇸🇩', togo: '🇹🇬', tunisia: '🇹🇳', zambia: '🇿🇲', zimbabwe: '🇿🇼',
+  // North America
   usa: '🇺🇸', canada: '🇨🇦', mexico: '🇲🇽',
+  antigua_and_barbuda: '🇦🇬', bahamas: '🇧🇸', barbados: '🇧🇧', belize: '🇧🇿', costa_rica: '🇨🇷',
+  cuba: '🇨🇺', dominica: '🇩🇲', dominican_republic: '🇩🇴', el_salvador: '🇸🇻', grenada: '🇬🇩',
+  guatemala: '🇬🇹', haiti: '🇭🇹', honduras: '🇭🇳', jamaica: '🇯🇲', nicaragua: '🇳🇮', panama: '🇵🇦',
+  saint_kitts_and_nevis: '🇰🇳', saint_lucia: '🇱🇨', saint_vincent_and_the_grenadines: '🇻🇨',
+  trinidad_and_tobago: '🇹🇹',
+  // South America
   brazil: '🇧🇷', argentina: '🇦🇷', colombia: '🇨🇴', chile: '🇨🇱', peru: '🇵🇪',
+  bolivia: '🇧🇴', ecuador: '🇪🇨', guyana: '🇬🇾', paraguay: '🇵🇾', suriname: '🇸🇷',
+  uruguay: '🇺🇾', venezuela: '🇻🇪',
+  // Europe
   uk: '🇬🇧', germany: '🇩🇪', france: '🇫🇷', spain: '🇪🇸', italy: '🇮🇹',
   netherlands: '🇳🇱', sweden: '🇸🇪', switzerland: '🇨🇭', ireland: '🇮🇪', portugal: '🇵🇹', poland: '🇵🇱',
+  austria: '🇦🇹', belgium: '🇧🇪', bulgaria: '🇧🇬', croatia: '🇭🇷', czech_republic: '🇨🇿',
+  denmark: '🇩🇰', estonia: '🇪🇪', finland: '🇫🇮', greece: '🇬🇷', hungary: '🇭🇺', iceland: '🇮🇸',
+  latvia: '🇱🇻', liechtenstein: '🇱🇮', lithuania: '🇱🇹', luxembourg: '🇱🇺', malta: '🇲🇹', monaco: '🇲🇨',
+  montenegro: '🇲🇪', north_macedonia: '🇲🇰', norway: '🇳🇴', romania: '🇷🇴', san_marino: '🇸🇲',
+  serbia: '🇷🇸', slovakia: '🇸🇰', slovenia: '🇸🇮', ukraine: '🇺🇦',
+  // Asia
   india: '🇮🇳', china: '🇨🇳', japan: '🇯🇵', uae: '🇦🇪', singapore: '🇸🇬',
   south_korea: '🇰🇷', saudi_arabia: '🇸🇦', israel: '🇮🇱', thailand: '🇹🇭',
   indonesia: '🇮🇩', philippines: '🇵🇭', malaysia: '🇲🇾', turkey: '🇹🇷',
+  afghanistan: '🇦🇫', armenia: '🇦🇲', azerbaijan: '🇦🇿', bahrain: '🇧🇭', bangladesh: '🇧🇩',
+  bhutan: '🇧🇹', brunei: '🇧🇳', cambodia: '🇰🇭', georgia: '🇬🇪', iraq: '🇮🇶', jordan: '🇯🇴',
+  kazakhstan: '🇰🇿', kuwait: '🇰🇼', kyrgyzstan: '🇰🇬', laos: '🇱🇦', lebanon: '🇱🇧', maldives: '🇲🇻',
+  mongolia: '🇲🇳', myanmar: '🇲🇲', nepal: '🇳🇵', oman: '🇴🇲', pakistan: '🇵🇰', palestine: '🇵🇸',
+  qatar: '🇶🇦', sri_lanka: '🇱🇰', syria: '🇸🇾', tajikistan: '🇹🇯', timor_leste: '🇹🇱',
+  turkmenistan: '🇹🇲', uzbekistan: '🇺🇿', vietnam: '🇻🇳', yemen: '🇾🇪',
+  // Oceania
   australia: '🇦🇺', new_zealand: '🇳🇿',
+  fiji: '🇫🇯', kiribati: '🇰🇮', marshall_islands: '🇲🇭', micronesia: '🇫🇲', nauru: '🇳🇷',
+  palau: '🇵🇼', papua_new_guinea: '🇵🇬', samoa: '🇼🇸', solomon_islands: '🇸🇧', tonga: '🇹🇴',
+  tuvalu: '🇹🇻', vanuatu: '🇻🇺',
 }
 
 // ============================================================
@@ -60,7 +95,7 @@ interface EngineConfig {
 const ENGINE_CARDS: EngineConfig[] = [
   {
     id: 'ads_intent',
-    name: 'Ads Intent',
+    name: 'Ad Finder',
     description: 'Find businesses running ads',
     icon: <Target className="w-5 h-5" />,
     color: 'var(--color-orange)',
@@ -69,8 +104,8 @@ const ENGINE_CARDS: EngineConfig[] = [
   },
   {
     id: 'smb_maps',
-    name: 'SMB Maps',
-    description: 'Find local businesses',
+    name: 'Local Search',
+    description: 'Find local businesses near you',
     icon: <MapPin className="w-5 h-5" />,
     color: 'var(--color-blue)',
     bgColor: 'var(--color-blue-bg)',
@@ -78,8 +113,8 @@ const ENGINE_CARDS: EngineConfig[] = [
   },
   {
     id: 'web_absent',
-    name: 'Web Absent',
-    description: 'Find businesses with no website',
+    name: 'No Website',
+    description: 'Find businesses without a website',
     icon: <Globe className="w-5 h-5" />,
     color: 'var(--color-red)',
     bgColor: 'var(--color-red-bg)',
@@ -87,8 +122,8 @@ const ENGINE_CARDS: EngineConfig[] = [
   },
   {
     id: 'social_intent',
-    name: 'Social Intent',
-    description: 'Find people asking for help',
+    name: 'Social Leads',
+    description: 'Find people looking for help',
     icon: <MessageSquare className="w-5 h-5" />,
     color: 'var(--color-green)',
     bgColor: 'var(--color-green-bg)',
@@ -102,6 +137,87 @@ const COIN_PACKAGES = [
   { coins: 3000, price: 12000, label: '3,000 coins' },
   { coins: 5000, price: 18000, label: '5,000 coins' },
 ]
+
+// ============================================================
+// PRICING TIERS
+// ============================================================
+const PRICING_TIERS = [
+  {
+    id: 'explorer',
+    name: 'Explorer',
+    price: 0,
+    coins: 50,
+    features: ['50 free coins monthly', '2-3 searches per month', 'Basic lead data', 'CSV export'],
+    icon: <Zap className="w-5 h-5" />,
+    color: 'var(--text-tertiary)',
+    planType: 'free',
+  },
+  {
+    id: 'starter',
+    name: 'Starter',
+    price: 4999,
+    coins: 500,
+    features: ['500 coins monthly', '~25 searches per month', 'Full lead data', 'Priority processing', 'CSV export'],
+    icon: <Sparkles className="w-5 h-5" />,
+    color: 'var(--color-blue)',
+    planType: 'starter',
+  },
+  {
+    id: 'growth',
+    name: 'Growth',
+    price: 14999,
+    coins: 2000,
+    features: ['2,000 coins monthly', '~100 searches per month', 'Full lead data', 'Priority processing', 'API access', 'CSV export'],
+    icon: <TrendingUp className="w-5 h-5" />,
+    color: 'var(--color-accent)',
+    planType: 'growth',
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    price: 39999,
+    coins: 5000,
+    features: ['5,000 coins monthly', 'Unlimited searches', 'Full lead data', 'Priority processing', 'API access', 'Dedicated support', 'CSV export'],
+    icon: <Crown className="w-5 h-5" />,
+    color: 'var(--color-orange)',
+    planType: 'pro',
+  },
+]
+
+// ============================================================
+// ENGINE-SPECIFIC PROGRESS MESSAGES
+// ============================================================
+const ENGINE_PROGRESS_MESSAGES: Record<EngineType, string[]> = {
+  ads_intent: [
+    'Scanning ad networks...',
+    'Checking campaign data...',
+    'Identifying advertisers...',
+    'Compiling leads...',
+  ],
+  smb_maps: [
+    'Scanning business directories...',
+    'Searching maps data...',
+    'Finding local businesses...',
+    'Compiling leads...',
+  ],
+  web_absent: [
+    'Scanning business listings...',
+    'Checking web presence...',
+    'Identifying gaps...',
+    'Compiling leads...',
+  ],
+  social_intent: [
+    'Scanning social platforms...',
+    'Finding intent signals...',
+    'Matching queries...',
+    'Compiling leads...',
+  ],
+}
+
+// ============================================================
+// POPULAR REGIONS
+// ============================================================
+const POPULAR_REGIONS = ['africa', 'north_america', 'europe']
 
 // ============================================================
 // PAYSTACK LOADER
@@ -120,6 +236,68 @@ function loadPaystackScript(onLoad?: () => void) {
 // DASHBOARD VIEW TYPE
 // ============================================================
 type DashboardView = 'search' | 'searching' | 'results'
+
+// ============================================================
+// TOAST NOTIFICATION SYSTEM
+// ============================================================
+interface Toast {
+  id: string
+  message: string
+  action?: { label: string; onClick: () => void }
+  type: 'error' | 'warning' | 'info'
+}
+
+function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: string) => void }) {
+  return (
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 w-full max-w-md px-4">
+      <AnimatePresence>
+        {toasts.map((toast) => (
+          <motion.div
+            key={toast.id}
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className={`
+              flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg
+              ${toast.type === 'error' ? 'bg-red-50 dark:bg-red-950/80 border-red-200 dark:border-red-800' : ''}
+              ${toast.type === 'warning' ? 'bg-amber-50 dark:bg-amber-950/80 border-amber-200 dark:border-amber-800' : ''}
+              ${toast.type === 'info' ? 'bg-blue-50 dark:bg-blue-950/80 border-blue-200 dark:border-blue-800' : ''}
+            `}
+          >
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium ${
+                toast.type === 'error' ? 'text-red-800 dark:text-red-200' :
+                toast.type === 'warning' ? 'text-amber-800 dark:text-amber-200' :
+                'text-blue-800 dark:text-blue-200'
+              }`}>
+                {toast.message}
+              </p>
+            </div>
+            {toast.action && (
+              <button
+                onClick={toast.action.onClick}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${
+                  toast.type === 'error' ? 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/50 dark:text-red-200 dark:hover:bg-red-900/70' :
+                  toast.type === 'warning' ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-200 dark:hover:bg-amber-900/70' :
+                  'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-200 dark:hover:bg-blue-900/70'
+                }`}
+              >
+                {toast.action.label}
+              </button>
+            )}
+            <button
+              onClick={() => onDismiss(toast.id)}
+              className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  )
+}
 
 // ============================================================
 // MAIN DASHBOARD COMPONENT (exported)
@@ -206,6 +384,40 @@ export function DashboardContent({
   const [taskStatus, setTaskStatus] = useState<string>('idle')
   const [location, setLocation] = useState({ continent: '', country: '', stateRegion: '' })
 
+  // New state for upgrade modal and error messages
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [userTier, setUserTier] = useState<string>('free')
+
+  // Toast notification state
+  const [toasts, setToasts] = useState<Toast[]>([])
+
+  // ============================================================
+  // TOAST HELPERS
+  // ============================================================
+  const addToast = useCallback((message: string, type: Toast['type'] = 'error', action?: Toast['action']) => {
+    const id = `toast_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+    setToasts(prev => [...prev, { id, message, type, action }])
+    // Auto-dismiss after 8 seconds
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id))
+    }, 8000)
+  }, [])
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id))
+  }, [])
+
+  // ============================================================
+  // FETCH USER TIER/PROFILE
+  // ============================================================
+  useEffect(() => {
+    if (!userId) return
+    getUserProfile(userId).then(data => {
+      if (data.profile?.tier) setUserTier(data.profile.tier)
+    }).catch(() => {})
+  }, [userId])
+
   // ============================================================
   // COIN BALANCE REFRESH (only if signed in)
   // ============================================================
@@ -272,6 +484,7 @@ export function DashboardContent({
 
     setView('searching')
     setTaskStatus('processing')
+    setErrorMessage('')
 
     try {
       const taskData = await createTask({
@@ -279,6 +492,9 @@ export function DashboardContent({
         task_type: selectedEngine,
         query: searchQuery.trim(),
         coins_reserved: engineConfig.coinCost,
+        continent: location.continent,
+        country: location.country,
+        state_region: location.stateRegion,
       })
 
       // Backend returns {success: true, task: [{id: "uuid", ...}]}
@@ -329,11 +545,48 @@ export function DashboardContent({
       } catch { /* non-critical */ }
     } catch (err) {
       console.error('[DASHBOARD] Search failed:', err)
-      setTaskStatus('failed')
-      setLeads([])
-      setView('results')
+
+      // Check for TaskCreateError and handle gracefully
+      if (err instanceof TaskCreateError) {
+        if (err.code === 'INSUFFICIENT_COINS') {
+          // Show payment modal, stay on search view
+          setPaymentModalOpen(true)
+          setView('search')
+          addToast('Not enough coins. Top up to continue searching.', 'error', {
+            label: 'Get Coins',
+            onClick: () => setPaymentModalOpen(true),
+          })
+        } else if (err.code === 'ENGINE_NOT_AVAILABLE') {
+          // Show upgrade modal
+          setUpgradeModalOpen(true)
+          setView('search')
+          setErrorMessage('This search engine requires an upgraded plan.')
+          addToast('Engine not available. Upgrade your plan to access it.', 'warning', {
+            label: 'Upgrade',
+            onClick: () => setUpgradeModalOpen(true),
+          })
+        } else if (err.code === 'RATE_LIMITED') {
+          // Show rate limit message
+          setView('search')
+          setErrorMessage('Daily search limit reached. Upgrade for more searches.')
+          addToast('Daily search limit reached. Upgrade for more searches.', 'warning', {
+            label: 'Upgrade',
+            onClick: () => setUpgradeModalOpen(true),
+          })
+        } else {
+          // Unknown TaskCreateError — still go to results with empty leads
+          setTaskStatus('failed')
+          setLeads([])
+          setView('results')
+        }
+      } else {
+        // Non-TaskCreateError — keep existing behavior (go to results with empty leads)
+        setTaskStatus('failed')
+        setLeads([])
+        setView('results')
+      }
     }
-  }, [selectedEngine, searchQuery, userId, coinBalance, deductCoins, setLeads, setCollections])
+  }, [selectedEngine, searchQuery, userId, coinBalance, deductCoins, setLeads, setCollections, location, addToast])
 
   // ============================================================
   // LOAD COLLECTION LEADS
@@ -427,6 +680,32 @@ export function DashboardContent({
   }, [user, userId, addCoins, setCoinBalance, paystackKey])
 
   // ============================================================
+  // UPGRADE PLAN PAYMENT
+  // ============================================================
+  const handleUpgradePlan = useCallback(async (tier: typeof PRICING_TIERS[0]) => {
+    if (tier.price === 0) return // Free tier, no payment needed
+
+    const email = user?.emailAddresses?.[0]?.emailAddress
+    if (!email || !userId) return
+
+    try {
+      const result = await initializePaystackPayment({
+        user_id: userId,
+        email,
+        plan_type: tier.planType,
+        package_id: tier.id,
+      })
+      // Redirect to Paystack authorization URL
+      if (result.authorization_url) {
+        window.location.href = result.authorization_url
+      }
+    } catch (err) {
+      console.error('[DASHBOARD] Upgrade payment failed:', err)
+      addToast('Failed to initialize payment. Please try again.', 'error')
+    }
+  }, [user, userId, addToast])
+
+  // ============================================================
   // NEW SEARCH — Reset state
   // ============================================================
   const handleNewSearch = useCallback(() => {
@@ -435,6 +714,7 @@ export function DashboardContent({
     setLeads([])
     setLocation({ continent: '', country: '', stateRegion: '' })
     setView('search')
+    setErrorMessage('')
   }, [setSelectedEngine, setSearchQuery, setLeads])
 
   // ============================================================
@@ -446,10 +726,21 @@ export function DashboardContent({
   )
 
   // ============================================================
+  // TIER DISPLAY NAME
+  // ============================================================
+  const tierDisplayName = useMemo(() => {
+    const tier = PRICING_TIERS.find(t => t.planType === userTier)
+    return tier ? tier.name : 'Explorer'
+  }, [userTier])
+
+  // ============================================================
   // RENDER — Authenticated Dashboard
   // ============================================================
   return (
     <div className="h-screen flex bg-[var(--bg-primary)] relative overflow-hidden">
+      {/* ============ TOAST NOTIFICATIONS ============ */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
       {/* ============ MOBILE SIDEBAR OVERLAY ============ */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -486,7 +777,7 @@ export function DashboardContent({
           </button>
         </div>
 
-        {/* Coin Balance */}
+        {/* Coin Balance + Tier Badge */}
         <div className="px-5 py-4 flex-shrink-0">
           <div className="rounded-xl bg-gradient-to-br from-[var(--bg-inverse)] to-[var(--bg-inverse)]/90 p-4 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-20 h-20 rounded-full bg-[var(--color-accent)]/10 -translate-y-1/2 translate-x-1/2" />
@@ -500,6 +791,13 @@ export function DashboardContent({
             {coinBalance.coins_reserved > 0 && (
               <p className="text-xs text-[var(--text-inverse)]/40 mt-0.5">{coinBalance.coins_reserved} reserved</p>
             )}
+            {/* Tier Badge */}
+            <div className="mt-2 flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 text-[10px] font-medium text-white/70">
+                <Crown className="w-2.5 h-2.5" />
+                {tierDisplayName} Plan
+              </span>
+            </div>
           </div>
         </div>
 
@@ -554,6 +852,13 @@ export function DashboardContent({
           >
             <Coins className="w-4 h-4 text-[var(--color-coin)]" />
             Get More Coins
+          </button>
+          <button
+            onClick={() => setUpgradeModalOpen(true)}
+            className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-[var(--color-accent)] hover:bg-[var(--bg-primary)] transition-colors flex items-center gap-2.5"
+          >
+            <TrendingUp className="w-4 h-4" />
+            Upgrade Plan
           </button>
           <button
             onClick={() => setSettingsOpen(true)}
@@ -629,6 +934,7 @@ export function DashboardContent({
                 onLocationChange={setLocation}
                 onSearch={handleSearch}
                 coinBalance={coinBalance.coins_balance}
+                errorMessage={errorMessage}
               />
             )}
             {view === 'searching' && (
@@ -637,6 +943,7 @@ export function DashboardContent({
                 engine={currentEngine}
                 query={searchQuery}
                 taskStatus={taskStatus}
+                location={location}
               />
             )}
             {view === 'results' && (
@@ -733,6 +1040,36 @@ export function DashboardContent({
           </>
         )}
       </AnimatePresence>
+
+      {/* ============ UPGRADE MODAL ============ */}
+      <AnimatePresence>
+        {upgradeModalOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-50"
+              onClick={() => setUpgradeModalOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed inset-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-[720px] sm:max-h-[90vh] bg-[var(--bg-primary)] rounded-2xl border border-[var(--border-color)] shadow-2xl z-50 overflow-hidden"
+            >
+              <UpgradeModal
+                onClose={() => setUpgradeModalOpen(false)}
+                onUpgrade={handleUpgradePlan}
+                currentTier={userTier}
+                userId={userId}
+                user={user}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -749,6 +1086,7 @@ function SearchView({
   onLocationChange,
   onSearch,
   coinBalance,
+  errorMessage,
 }: {
   selectedEngine: EngineType | null
   onSelectEngine: (e: EngineType | null) => void
@@ -758,6 +1096,7 @@ function SearchView({
   onLocationChange: (loc: { continent: string; country: string; stateRegion: string }) => void
   onSearch: () => void
   coinBalance: number
+  errorMessage: string
 }) {
   const currentEngine = ENGINE_CARDS.find(e => e.id === selectedEngine)
   const canSearch = selectedEngine && searchQuery.trim()
@@ -772,6 +1111,18 @@ function SearchView({
     >
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 md:px-8 py-8 md:py-12">
+          {/* Error Message Banner */}
+          {errorMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex items-center gap-2 text-sm text-amber-800 dark:text-amber-200"
+            >
+              <Shield className="w-4 h-4 flex-shrink-0" />
+              {errorMessage}
+            </motion.div>
+          )}
+
           {/* Engine Selector */}
           <div className="mb-8">
             <h1 className="text-xl md:text-2xl font-bold text-[var(--text-primary)] mb-1">Find Leads</h1>
@@ -907,14 +1258,29 @@ function LocationDropdowns({
   const countries = useMemo(() => getCountriesForContinent(location.continent), [location.continent])
   const states = useMemo(() => getStatesForCountry(location.continent, location.country), [location.continent, location.country])
 
+  // Build region options with popular section
+  const popularOptions = useMemo(() => {
+    const pop = locationData.filter(c => POPULAR_REGIONS.includes(c.value))
+    return pop.map(c => ({ value: c.value, label: `${c.emoji} ${c.label}`, isPopular: true }))
+  }, [])
+
+  const allRegionOptions = useMemo(() => {
+    const popular = popularOptions.map(o => ({ ...o }))
+    const rest = locationData
+      .filter(c => !POPULAR_REGIONS.includes(c.value))
+      .map(c => ({ value: c.value, label: `${c.emoji} ${c.label}`, isPopular: false }))
+    return [...popular, ...rest]
+  }, [popularOptions])
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
       {/* Region */}
       <Dropdown
         placeholder="Region"
         value={location.continent}
-        options={locationData.map(c => ({ value: c.value, label: `${c.emoji} ${c.label}` }))}
+        options={allRegionOptions}
         onChange={(v) => onLocationChange({ continent: v, country: '', stateRegion: '' })}
+        popularCount={popularOptions.length}
       />
       {/* Country */}
       <Dropdown
@@ -940,7 +1306,7 @@ function LocationDropdowns({
 }
 
 // ============================================================
-// GENERIC DROPDOWN
+// GENERIC DROPDOWN (with improved UX)
 // ============================================================
 function Dropdown({
   placeholder,
@@ -948,22 +1314,65 @@ function Dropdown({
   options,
   onChange,
   disabled = false,
+  popularCount = 0,
 }: {
   placeholder: string
   value: string
-  options: { value: string; label: string }[]
+  options: { value: string; label: string; isPopular?: boolean }[]
   onChange: (v: string) => void
   disabled?: boolean
+  popularCount?: number
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const ref = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   const selected = options.find(o => o.value === value)
   const filtered = useMemo(() => {
     if (!search) return options
     return options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
   }, [options, search])
+
+  // Calculate position when opening
+  useEffect(() => {
+    if (open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      const viewportHeight = window.innerHeight
+      const spaceBelow = viewportHeight - rect.bottom
+      const spaceAbove = rect.top
+      const dropdownHeight = 380 // approximate max height of dropdown
+
+      if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+        // Open upward
+        setDropdownStyle({
+          position: 'fixed',
+          bottom: viewportHeight - rect.top + 4,
+          left: rect.left,
+          width: rect.width,
+          zIndex: 60,
+        })
+      } else {
+        // Open downward (default)
+        setDropdownStyle({
+          position: 'fixed',
+          top: rect.bottom + 4,
+          left: rect.left,
+          width: rect.width,
+          zIndex: 60,
+        })
+      }
+    }
+  }, [open])
+
+  // Auto-focus search input when opened
+  useEffect(() => {
+    if (open && searchInputRef.current && options.length > 8) {
+      setTimeout(() => searchInputRef.current?.focus(), 50)
+    }
+  }, [open, options.length])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -973,9 +1382,14 @@ function Dropdown({
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  // Split options into popular and rest for display
+  const popularItems = popularCount > 0 ? filtered.filter(o => o.isPopular) : []
+  const regularItems = popularCount > 0 ? filtered.filter(o => !o.isPopular) : filtered
+
   return (
     <div className="relative" ref={ref}>
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => { if (!disabled) { setOpen(!open); setSearch('') } }}
@@ -996,12 +1410,13 @@ function Dropdown({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.12 }}
-            className="absolute top-full left-0 right-0 mt-1 z-50 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)] shadow-lg overflow-hidden"
-            style={{ boxShadow: 'var(--shadow-dropdown)' }}
+            className="rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)] shadow-lg overflow-hidden"
+            style={{ ...dropdownStyle, boxShadow: 'var(--shadow-dropdown)' }}
           >
             {options.length > 8 && (
               <div className="p-2 border-b border-[var(--border-color)]">
                 <input
+                  ref={searchInputRef}
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -1011,25 +1426,50 @@ function Dropdown({
                 />
               </div>
             )}
-            <div className="max-h-56 overflow-y-auto py-1">
+            <div className="max-h-80 overflow-y-auto py-1">
               {filtered.length === 0 ? (
                 <p className="px-3 py-3 text-xs text-[var(--text-tertiary)] text-center">No results</p>
               ) : (
-                filtered.map(opt => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => { onChange(opt.value); setOpen(false); setSearch('') }}
-                    className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2
-                      ${opt.value === value
-                        ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
-                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
-                      }`}
-                  >
-                    {opt.value === value && <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />}
-                    <span className="truncate">{opt.label}</span>
-                  </button>
-                ))
+                <>
+                  {/* Popular section */}
+                  {popularItems.length > 0 && (
+                    <>
+                      <p className="px-3 py-1.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Popular</p>
+                      {popularItems.map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => { onChange(opt.value); setOpen(false); setSearch('') }}
+                          className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2
+                            ${opt.value === value
+                              ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
+                            }`}
+                        >
+                          {opt.value === value && <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />}
+                          <span className="truncate">{opt.label}</span>
+                        </button>
+                      ))}
+                      <div className="my-1 mx-3 border-t border-[var(--border-color)]" />
+                    </>
+                  )}
+                  {/* Regular items */}
+                  {regularItems.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => { onChange(opt.value); setOpen(false); setSearch('') }}
+                      className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2
+                        ${opt.value === value
+                          ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
+                        }`}
+                    >
+                      {opt.value === value && <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />}
+                      <span className="truncate">{opt.label}</span>
+                    </button>
+                  ))}
+                </>
               )}
             </div>
           </motion.div>
@@ -1040,25 +1480,62 @@ function Dropdown({
 }
 
 // ============================================================
-// SEARCHING VIEW
+// SEARCHING VIEW (with cycling progress messages)
 // ============================================================
 function SearchingView({
   engine,
   query,
   taskStatus,
+  location,
 }: {
   engine: EngineConfig | undefined
   query: string
   taskStatus: string
+  location: { continent: string; country: string; stateRegion: string }
 }) {
-  const statusMessages: Record<string, string> = {
-    idle: 'Preparing search...',
-    pending: 'Queuing your search...',
-    processing: 'Scanning the internet for leads...',
-    completed: 'Search complete!',
-    failed: 'Search failed. Please try again.',
-    exhausted: 'Search complete!',
-  }
+  const [messageIndex, setMessageIndex] = useState(0)
+  const [fadeKey, setFadeKey] = useState(0)
+
+  // Get engine-specific messages
+  const engineMessages = engine ? ENGINE_PROGRESS_MESSAGES[engine.id] : ['Processing...', 'Working...', 'Almost there...']
+
+  // Build location-aware messages
+  const messages = useMemo(() => {
+    const locMessages = [...engineMessages]
+
+    // Add a location-aware message if location is set
+    if (location.country) {
+      const countryName = location.country.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+      locMessages.splice(1, 0, `Finding leads in ${countryName}...`)
+    } else if (location.continent) {
+      const continentName = location.continent.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+      locMessages.splice(1, 0, `Finding leads in ${continentName}...`)
+    }
+
+    return locMessages
+  }, [engineMessages, location.continent, location.country])
+
+  // Cycle through messages every 3-4 seconds
+  useEffect(() => {
+    if (taskStatus === 'completed' || taskStatus === 'exhausted' || taskStatus === 'failed') return
+
+    const interval = setInterval(() => {
+      setMessageIndex(prev => {
+        const next = (prev + 1) % messages.length
+        setFadeKey(k => k + 1)
+        return next
+      })
+    }, 3500)
+
+    return () => clearInterval(interval)
+  }, [messages.length, taskStatus])
+
+  // Get current message
+  const currentMessage = taskStatus === 'completed' || taskStatus === 'exhausted'
+    ? 'Search complete!'
+    : taskStatus === 'failed'
+    ? 'Search failed. Please try again.'
+    : messages[messageIndex] || 'Processing...'
 
   return (
     <motion.div
@@ -1074,11 +1551,25 @@ function SearchingView({
           <Loader2 className="w-8 h-8 animate-spin" />
         </div>
         <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">
-          {statusMessages[taskStatus] || 'Processing...'}
+          Searching for &quot;{query}&quot;
         </h2>
         <p className="text-sm text-[var(--text-secondary)] mb-4">
-          Searching for &quot;{query}&quot; with {engine?.name || 'engine'}
+          Using {engine?.name || 'engine'}
         </p>
+
+        {/* Cycling progress message */}
+        <div className="h-6 mb-5">
+          <motion.p
+            key={fadeKey}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="text-sm text-[var(--color-accent)] font-medium"
+          >
+            {currentMessage}
+          </motion.p>
+        </div>
+
         <div className="w-48 h-1.5 bg-[var(--bg-surface)] rounded-full mx-auto overflow-hidden">
           <motion.div
             className="h-full rounded-full"
@@ -1164,16 +1655,16 @@ function ResultsView({
                   </div>
                 </td>
                 <td className="px-4 py-3 hidden md:table-cell">
-                  <div className="text-[var(--text-primary)]">{lead.dm_name || '—'}</div>
+                  <div className="text-[var(--text-primary)]">{lead.dm_name || '\u2014'}</div>
                   <div className="text-xs text-[var(--text-tertiary)]">{lead.dm_position || ''}</div>
                 </td>
                 <td className="px-4 py-3 hidden lg:table-cell">
                   <span className="text-[var(--text-secondary)] text-xs truncate max-w-[180px] block">
-                    {lead.verified_email || '—'}
+                    {lead.verified_email || '\u2014'}
                   </span>
                 </td>
                 <td className="px-4 py-3 hidden xl:table-cell">
-                  <span className="text-[var(--text-secondary)] text-xs">{lead.phone || '—'}</span>
+                  <span className="text-[var(--text-secondary)] text-xs">{lead.phone || '\u2014'}</span>
                 </td>
                 <td className="px-4 py-3">
                   {lead.verified_email ? (
@@ -1372,7 +1863,7 @@ function PaymentModal({
               <span className="font-semibold text-[var(--text-primary)] text-sm">{pkg.label}</span>
             </div>
             <span className="text-sm font-medium text-[var(--text-secondary)] group-hover:text-[var(--color-accent)] transition-colors">
-              {pkg.currency === 'USD' ? '$' : '\u20A6'}{pkg.price.toLocaleString()}
+              {'\u20A6'}{pkg.price.toLocaleString()}
             </span>
           </button>
         ))}
@@ -1380,6 +1871,144 @@ function PaymentModal({
 
       <p className="text-[10px] text-[var(--text-tertiary)] text-center mt-4">
         Secure payment via Paystack. Coins added instantly.
+      </p>
+    </div>
+  )
+}
+
+// ============================================================
+// UPGRADE MODAL
+// ============================================================
+function UpgradeModal({
+  onClose,
+  onUpgrade,
+  currentTier,
+  userId,
+  user,
+}: {
+  onClose: () => void
+  onUpgrade: (tier: typeof PRICING_TIERS[0]) => void
+  currentTier: string
+  userId: string | null
+  user: any
+}) {
+  const [upgradingTier, setUpgradingTier] = useState<string | null>(null)
+
+  const handleTierClick = async (tier: typeof PRICING_TIERS[0]) => {
+    if (tier.planType === 'free') return // Can't upgrade to free
+    setUpgradingTier(tier.id)
+    try {
+      await onUpgrade(tier)
+    } catch {
+      setUpgradingTier(null)
+    }
+  }
+
+  return (
+    <div className="p-6 overflow-y-auto max-h-[90vh]">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold text-[var(--text-primary)]">Upgrade Your Plan</h3>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">Get more searches, more leads, better results</p>
+        </div>
+        <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-[var(--bg-surface)] flex items-center justify-center">
+          <X className="w-4 h-4 text-[var(--text-secondary)]" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {PRICING_TIERS.map((tier) => {
+          const isCurrentTier = tier.planType === currentTier
+          const isUpgrading = upgradingTier === tier.id
+
+          return (
+            <div
+              key={tier.id}
+              className={`
+                relative p-4 rounded-xl border-2 transition-all
+                ${isCurrentTier
+                  ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                  : 'border-[var(--border-color)] bg-[var(--bg-primary)] hover:border-[var(--border-light)]'
+                }
+              `}
+            >
+              {/* Current Plan Badge */}
+              {isCurrentTier && (
+                <span className="absolute -top-2.5 left-3 px-2 py-0.5 rounded-full bg-[var(--color-accent)] text-white text-[10px] font-semibold">
+                  Current Plan
+                </span>
+              )}
+
+              <div className="flex items-center gap-2 mb-3">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style={{ color: tier.color, background: 'var(--bg-surface)' }}
+                >
+                  {tier.icon}
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm text-[var(--text-primary)]">{tier.name}</h4>
+                  <p className="text-xs text-[var(--text-secondary)]">{tier.coins.toLocaleString()} coins/mo</p>
+                </div>
+              </div>
+
+              {/* Price */}
+              <div className="mb-3">
+                {tier.price === 0 ? (
+                  <p className="text-lg font-bold text-[var(--text-primary)]">Free</p>
+                ) : (
+                  <p className="text-lg font-bold text-[var(--text-primary)]">
+                    {'\u20A6'}{tier.price.toLocaleString()}
+                    <span className="text-xs font-normal text-[var(--text-tertiary)]">/mo</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Features */}
+              <ul className="space-y-1.5 mb-4">
+                {tier.features.map((feature, i) => (
+                  <li key={i} className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+                    <CheckCircle2 className="w-3 h-3 text-[var(--color-accent)] flex-shrink-0" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+
+              {/* Action Button */}
+              {isCurrentTier ? (
+                <div className="w-full py-2 rounded-lg bg-[var(--bg-surface)] text-center text-xs font-medium text-[var(--text-tertiary)]">
+                  Current Plan
+                </div>
+              ) : tier.price === 0 ? (
+                <div className="w-full py-2 rounded-lg bg-[var(--bg-surface)] text-center text-xs font-medium text-[var(--text-tertiary)]">
+                  Default
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleTierClick(tier)}
+                  disabled={isUpgrading}
+                  className="w-full py-2 rounded-lg bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-purple)] text-white text-xs font-semibold hover:shadow-lg hover:shadow-[var(--color-accent)]/20 transition-shadow disabled:opacity-60 flex items-center justify-center gap-1.5"
+                >
+                  {isUpgrading ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="w-3 h-3" />
+                      Upgrade to {tier.name}
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="text-[10px] text-[var(--text-tertiary)] text-center mt-4">
+        Secure payment via Paystack. Cancel anytime.
       </p>
     </div>
   )

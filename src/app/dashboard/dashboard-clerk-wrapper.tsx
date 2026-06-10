@@ -16,7 +16,7 @@ export function DashboardWithClerk() {
   return (
     <DashboardContent
       isSignedIn={!!isSignedIn}
-      userId={userId}
+      userId={userId ?? null}
       user={user}
       signOut={signOut}
     />
