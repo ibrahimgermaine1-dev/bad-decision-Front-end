@@ -3,11 +3,11 @@
 /**
  * BAD DECISION — World-Class Dashboard
  * Premium sidebar layout. Real backend integration.
+ * Handles missing Clerk gracefully — shows sign-in prompt.
  * Views: Search → Searching → Results + Inspector.
  * Payment: Paystack inline. Self-contained component.
  */
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import { useAuth, useUser, useClerk, type UserResource } from '@clerk/nextjs'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Target, MapPin, Globe, MessageSquare,
@@ -19,7 +19,23 @@ import { useAppStore, type EngineType, type Lead, type SmartCollection } from '@
 import { createTask, getUserTasks, getCollectionLeads, pollTaskUntilDone } from '@/lib/backend'
 import { exportLeadsToCsv, downloadCsv } from '@/lib/csv-shield'
 import { locationData, getCountriesForContinent, getStatesForCountry } from '@/lib/locations'
-import { supabase } from '@/lib/supabase-client'
+import { isClerkConfigured } from '@/lib/clerk-config'
+
+// Dynamically import Clerk hooks only if configured
+let useAuth: any = () => ({ isSignedIn: false, userId: null })
+let useUser: any = () => ({ user: null, isLoaded: false })
+let useClerk: any = () => ({ signOut: () => {} })
+
+if (typeof window !== 'undefined') {
+  try {
+    const clerk = require('@clerk/nextjs')
+    if (isClerkConfigured()) {
+      useAuth = clerk.useAuth
+      useUser = clerk.useUser
+      useClerk = clerk.useClerk
+    }
+  } catch {}
+}
 
 // ============================================================
 // COUNTRY FLAGS
@@ -142,10 +158,19 @@ export default function DashboardClient() {
   const [location, setLocation] = useState({ continent: '', country: '', stateRegion: '' })
 
   // ============================================================
-  // COIN BALANCE REFRESH
+  // COIN BALANCE REFRESH (only if signed in)
   // ============================================================
   useEffect(() => {
     if (!userId) return
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (!supabaseUrl || supabaseUrl.includes('placeholder')) return
+
+    let supabase: any
+    try {
+      const mod = require('@/lib/supabase-client')
+      supabase = mod.supabase
+    } catch { return }
+
     const refresh = async () => {
       try {
         const { data } = await supabase
@@ -168,7 +193,7 @@ export default function DashboardClient() {
   }, [userId, setCoinBalance])
 
   // ============================================================
-  // LOAD RECENT TASKS
+  // LOAD RECENT TASKS (only if signed in)
   // ============================================================
   useEffect(() => {
     if (!userId) return
@@ -291,19 +316,20 @@ export default function DashboardClient() {
 
       const ref = `bd_${userId}_${Date.now()}`
       ;(window as any).PaystackPop.setup({
-        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_test_xxx',
+        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY || 'pk_test_xxx',
         email,
         amount: pkg.price,
         currency: 'NGN',
         reference: ref,
         onClose: () => {},
         callback: async () => {
-          // Optimistic local update
           addCoins(pkg.coins)
           setPaymentModalOpen(false)
-          // Verify server-side by refreshing balance from Supabase
+          // Refresh balance from Supabase
           if (userId) {
             try {
+              const mod = require('@/lib/supabase-client')
+              const supabase = mod.supabase
               const { data } = await supabase
                 .from('usage_ledger')
                 .select('coins_balance, coins_reserved, coins_lifetime')
@@ -316,12 +342,12 @@ export default function DashboardClient() {
                   coins_lifetime: data.coins_lifetime,
                 })
               }
-            } catch { /* silent — balance will refresh on next interval */ }
+            } catch { /* silent */ }
           }
         },
       }).openIframe()
     })
-  }, [user, userId, addCoins])
+  }, [user, userId, addCoins, setCoinBalance])
 
   // ============================================================
   // NEW SEARCH — Reset state
@@ -343,27 +369,40 @@ export default function DashboardClient() {
   )
 
   // ============================================================
-  // UNAUTHENTICATED GUARD
+  // UNAUTHENTICATED GUARD — Show sign-in prompt
   // ============================================================
   if (!isSignedIn) {
     return (
       <div className="h-screen flex items-center justify-center bg-[var(--bg-primary)]">
-        <div className="text-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-            className="w-8 h-8 mx-auto mb-4"
-          >
-            <Loader2 className="w-8 h-8 text-[var(--color-accent)]" />
-          </motion.div>
-          <p className="text-sm text-[var(--text-secondary)]">Redirecting to sign in...</p>
+        <div className="text-center max-w-md mx-auto px-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-purple)] flex items-center justify-center mx-auto mb-6 shadow-lg shadow-[var(--color-accent)]/20">
+            <span className="text-white font-bold text-lg">BD</span>
+          </div>
+          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-2">Sign in to continue</h2>
+          <p className="text-sm text-[var(--text-secondary)] mb-6">
+            You need an account to access the dashboard and find verified leads.
+          </p>
+          <div className="flex flex-col gap-3">
+            <a
+              href="/sign-in"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-purple)] text-white text-sm font-semibold shadow-lg hover:shadow-xl transition-shadow"
+            >
+              Sign In
+            </a>
+            <a
+              href="/sign-up"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-[var(--border-color)] text-[var(--text-primary)] text-sm font-medium hover:bg-[var(--bg-surface)] transition-colors"
+            >
+              Create Account
+            </a>
+          </div>
         </div>
       </div>
     )
   }
 
   // ============================================================
-  // RENDER
+  // RENDER — Authenticated Dashboard
   // ============================================================
   return (
     <div className="h-screen flex bg-[var(--bg-primary)] relative overflow-hidden">
@@ -480,7 +519,7 @@ export default function DashboardClient() {
             Settings
           </button>
           <button
-            onClick={() => signOut()}
+            onClick={() => { signOut(); setSettingsOpen(false) }}
             className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors flex items-center gap-2.5"
           >
             <LogOut className="w-4 h-4" />
@@ -765,7 +804,7 @@ function SearchView({
                   </div>
                 </div>
 
-                {/* Location Selector — ALWAYS VISIBLE */}
+                {/* Location Selector */}
                 <div className="mb-5">
                   <label className="block text-xs font-medium text-[var(--text-secondary)] mb-2 uppercase tracking-wider">
                     Location
@@ -969,10 +1008,12 @@ function SearchingView({
   taskStatus: string
 }) {
   const statusMessages: Record<string, string> = {
-    pending: 'Preparing your search...',
-    processing: 'Checking emails against real mail servers...',
-    idle: 'Starting up...',
+    idle: 'Preparing search...',
+    pending: 'Queuing your search...',
+    processing: 'Scanning the internet for leads...',
+    completed: 'Search complete!',
     failed: 'Search failed. Please try again.',
+    exhausted: 'Search complete!',
   }
 
   return (
@@ -982,63 +1023,26 @@ function SearchingView({
       exit={{ opacity: 0 }}
       className="h-full flex items-center justify-center"
     >
-      <div className="text-center max-w-md px-6">
-        <motion.div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
-          style={{
-            background: engine ? engine.bgColor : 'var(--bg-surface)',
-            color: engine ? engine.color : 'var(--text-tertiary)',
-          }}
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+      <div className="text-center max-w-sm mx-auto px-4">
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
+          style={{ background: engine?.bgColor, color: engine?.color }}
         >
-          {engine?.icon || <Search className="w-8 h-8" />}
-        </motion.div>
-
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-          className="w-8 h-8 mx-auto mb-4"
-        >
-          <Loader2 className="w-8 h-8 text-[var(--color-accent)]" />
-        </motion.div>
-
-        <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Finding verified leads...</h2>
-        <p className="text-sm text-[var(--text-secondary)] mb-1">
-          {statusMessages[taskStatus] || 'Checking emails against real mail servers'}
-        </p>
-        {query && (
-          <p className="text-xs text-[var(--text-tertiary)]">
-            Searching: &ldquo;{query}&rdquo;
-            {engine && ` via ${engine.name}`}
-          </p>
-        )}
-
-        {/* Progress bar */}
-        <div className="w-48 h-1.5 rounded-full bg-[var(--bg-surface)] mt-6 mx-auto overflow-hidden">
-          <motion.div
-            initial={{ width: '0%' }}
-            animate={{ width: '100%' }}
-            transition={{ duration: 12, ease: 'linear' }}
-            className="h-full rounded-full bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-purple)]"
-          />
+          <Loader2 className="w-8 h-8 animate-spin" />
         </div>
-
-        {/* Ghost rows */}
-        <div className="mt-8 space-y-3 max-w-md mx-auto">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.15, duration: 0.3 }}
-              className="flex gap-3 items-center"
-            >
-              <div className="h-4 bg-[var(--bg-surface)] rounded w-24 shimmer" />
-              <div className="h-4 bg-[var(--bg-surface)] rounded w-32 shimmer" />
-              <div className="h-4 bg-[var(--bg-surface)] rounded w-20 shimmer hidden sm:block" />
-            </motion.div>
-          ))}
+        <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">
+          {statusMessages[taskStatus] || 'Processing...'}
+        </h2>
+        <p className="text-sm text-[var(--text-secondary)] mb-4">
+          Searching for &quot;{query}&quot; with {engine?.name || 'engine'}
+        </p>
+        <div className="w-48 h-1.5 bg-[var(--bg-surface)] rounded-full mx-auto overflow-hidden">
+          <motion.div
+            className="h-full rounded-full"
+            style={{ background: `linear-gradient(90deg, var(--color-accent), var(--color-accent-purple))` }}
+            initial={{ width: '0%' }}
+            animate={{ width: taskStatus === 'completed' || taskStatus === 'exhausted' ? '100%' : '70%' }}
+            transition={{ duration: 3, ease: 'easeOut' }}
+          />
         </div>
       </div>
     </motion.div>
@@ -1055,11 +1059,8 @@ function ResultsView({
 }: {
   leads: Lead[]
   engineType: EngineType | null
-  onSelectLead: (l: Lead) => void
+  onSelectLead: (lead: Lead) => void
 }) {
-  const activeEngine = engineType || (leads.length > 0 && leads[0].engine_type ? leads[0].engine_type : null) as EngineType | null
-  const engineConfig = ENGINE_CARDS.find(e => e.id === activeEngine)
-
   if (leads.length === 0) {
     return (
       <motion.div
@@ -1067,15 +1068,12 @@ function ResultsView({
         animate={{ opacity: 1 }}
         className="h-full flex items-center justify-center"
       >
-        <div className="text-center max-w-sm px-6">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: 'var(--bg-surface)', color: 'var(--text-tertiary)' }}
-          >
-            <Search className="w-7 h-7" />
+        <div className="text-center max-w-sm mx-auto px-4">
+          <div className="w-14 h-14 rounded-2xl bg-[var(--bg-surface)] flex items-center justify-center mx-auto mb-4">
+            <Search className="w-7 h-7 text-[var(--text-tertiary)]" />
           </div>
-          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-2">No verified contacts found</h2>
-          <p className="text-sm text-[var(--text-secondary)]">Try different keywords, a different search type, or a new location.</p>
+          <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">No leads found</h3>
+          <p className="text-sm text-[var(--text-secondary)]">Try a different search query or location.</p>
         </div>
       </motion.div>
     )
@@ -1083,110 +1081,67 @@ function ResultsView({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       className="h-full flex flex-col"
     >
-      {/* Results header */}
-      <div className="px-4 md:px-6 py-4 border-b border-[var(--border-color)] flex-shrink-0">
-        <div className="max-w-6xl mx-auto flex items-center gap-3">
-          <span style={{ color: engineConfig?.color }} className="flex-shrink-0">
-            {engineConfig?.icon}
-          </span>
-          <div>
-            <h2 className="text-base font-bold text-[var(--text-primary)]">
-              {leads.length} verified contacts found
-            </h2>
-            <p className="text-xs text-[var(--text-tertiary)]">via {engineConfig?.name || 'Search'}</p>
-          </div>
-        </div>
+      {/* Results Header */}
+      <div className="px-4 md:px-6 py-3 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--bg-primary)]">
+        <p className="text-sm text-[var(--text-secondary)]">
+          <strong className="text-[var(--text-primary)]">{leads.length}</strong> leads found
+        </p>
       </div>
 
-      {/* Results content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto px-4 md:px-6 py-4">
-          {activeEngine === 'social_intent' ? (
-            <SocialIntentResults leads={leads} onSelect={onSelectLead} />
-          ) : activeEngine === 'web_absent' ? (
-            <WebAbsentResults leads={leads} onSelect={onSelectLead} />
-          ) : (
-            <TableResults leads={leads} engineType={activeEngine} onSelect={onSelectLead} />
-          )}
-        </div>
-      </div>
-    </motion.div>
-  )
-}
-
-// ============================================================
-// TABLE RESULTS (ads_intent / smb_maps)
-// ============================================================
-function TableResults({
-  leads,
-  engineType,
-  onSelect,
-}: {
-  leads: Lead[]
-  engineType: EngineType | null
-  onSelect: (l: Lead) => void
-}) {
-  return (
-    <div className="rounded-xl border border-[var(--border-color)] overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-[var(--bg-secondary)] border-b border-[var(--border-color)]">
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Company</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider hidden sm:table-cell">Website</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider hidden md:table-cell">Phone</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Email</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider hidden lg:table-cell">Status</th>
+      {/* Results Table */}
+      <div className="flex-1 overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-[var(--bg-secondary)] sticky top-0">
+            <tr>
+              <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Company</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider hidden md:table-cell">Decision Maker</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider hidden lg:table-cell">Email</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider hidden xl:table-cell">Phone</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Status</th>
             </tr>
           </thead>
-          <tbody>
-            {leads.map((lead, idx) => (
+          <tbody className="divide-y divide-[var(--border-color)]">
+            {leads.map((lead, i) => (
               <tr
-                key={lead.domain_hash || idx}
-                onClick={() => onSelect(lead)}
-                className="border-b border-[var(--border-color)] last:border-0 hover:bg-[var(--bg-secondary)] cursor-pointer transition-colors"
+                key={lead.domain_hash || i}
+                onClick={() => onSelectLead(lead)}
+                className="hover:bg-[var(--bg-secondary)] cursor-pointer transition-colors"
               >
                 <td className="px-4 py-3">
-                  <p className="text-sm font-medium text-[var(--text-primary)] truncate max-w-[200px]">{cleanVal(lead.company_name)}</p>
-                  {lead.dm_name && lead.dm_name !== 'ABSENT' && (
-                    <p className="text-xs text-[var(--text-tertiary)]">{cleanVal(lead.dm_name)}{lead.dm_position && lead.dm_position !== 'ABSENT' ? `, ${cleanVal(lead.dm_position)}` : ''}</p>
-                  )}
-                </td>
-                <td className="px-4 py-3 hidden sm:table-cell">
-                  {lead.website_url && lead.website_url !== 'ABSENT' && lead.website_url !== 'NONE' ? (
-                    <span className="text-xs text-[var(--color-accent)] truncate block max-w-[180px]">{cleanVal(lead.website_url)}</span>
-                  ) : (
-                    <span className="text-xs text-[var(--color-red)]">No website</span>
-                  )}
+                  <div className="font-medium text-[var(--text-primary)] truncate max-w-[200px]">
+                    {lead.company_name || 'Unknown'}
+                  </div>
+                  <div className="text-xs text-[var(--text-tertiary)] truncate max-w-[200px]">
+                    {lead.website_url || 'No website'}
+                  </div>
                 </td>
                 <td className="px-4 py-3 hidden md:table-cell">
-                  <span className="text-xs text-[var(--text-secondary)]">{cleanPhone(lead.phone)}</span>
-                </td>
-                <td className="px-4 py-3">
-                  {lead.verified_email && lead.verified_email !== 'ABSENT' ? (
-                    <span className="text-xs text-[var(--text-primary)] truncate block max-w-[200px]">{lead.verified_email}</span>
-                  ) : (
-                    <span className="text-xs text-[var(--text-tertiary)]">—</span>
-                  )}
+                  <div className="text-[var(--text-primary)]">{lead.dm_name || '—'}</div>
+                  <div className="text-xs text-[var(--text-tertiary)]">{lead.dm_position || ''}</div>
                 </td>
                 <td className="px-4 py-3 hidden lg:table-cell">
-                  {lead.verified_email && lead.verified_email !== 'ABSENT' ? (
-                    lead.is_catchall ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-orange-bg)] text-[var(--color-orange)]">
-                        <Shield className="w-3 h-3" /> Catch-All
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-green-bg)] text-[var(--color-green)]">
-                        <CheckCircle2 className="w-3 h-3" /> Verified
-                      </span>
-                    )
+                  <span className="text-[var(--text-secondary)] text-xs truncate max-w-[180px] block">
+                    {lead.verified_email || '—'}
+                  </span>
+                </td>
+                <td className="px-4 py-3 hidden xl:table-cell">
+                  <span className="text-[var(--text-secondary)] text-xs">{lead.phone || '—'}</span>
+                </td>
+                <td className="px-4 py-3">
+                  {lead.verified_email ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#DCFCE7] text-[#16A34A] dark:bg-green-950/30 dark:text-green-400">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Verified
+                    </span>
                   ) : (
-                    <span className="text-xs text-[var(--text-tertiary)]">—</span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--bg-surface)] text-[var(--text-tertiary)]">
+                      <Clock className="w-3 h-3" />
+                      Pending
+                    </span>
                   )}
                 </td>
               </tr>
@@ -1194,214 +1149,143 @@ function TableResults({
           </tbody>
         </table>
       </div>
-    </div>
-  )
-}
-
-// ============================================================
-// SOCIAL INTENT RESULTS
-// ============================================================
-function SocialIntentResults({ leads, onSelect }: { leads: Lead[]; onSelect: (l: Lead) => void }) {
-  return (
-    <div className="space-y-3">
-      {leads.map((lead, idx) => (
-        <motion.div
-          key={lead.domain_hash || idx}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: Math.min(idx * 0.04, 0.5) }}
-          onClick={() => onSelect(lead)}
-          className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-primary)] hover:border-[var(--border-light)] cursor-pointer transition-all hover:shadow-sm"
-        >
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-green-bg)', color: 'var(--color-green)' }}>
-              <MessageSquare className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-[var(--text-primary)] mb-1 line-clamp-2">
-                {lead.intent_text || lead.engine_data?.intent_text || lead.engine_data?.title || 'Looking for help...'}
-              </p>
-              <div className="flex items-center gap-3 text-xs text-[var(--text-tertiary)]">
-                {lead.platform && lead.platform !== 'ABSENT' && (
-                  <span className="capitalize">{lead.platform}</span>
-                )}
-                {lead.dm_name && lead.dm_name !== 'ABSENT' && (
-                  <span>{cleanVal(lead.dm_name)}</span>
-                )}
-                {lead.verified_email && lead.verified_email !== 'ABSENT' && (
-                  <span className="text-[var(--color-green)] flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Email verified
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      ))}
-    </div>
-  )
-}
-
-// ============================================================
-// WEB ABSENT RESULTS
-// ============================================================
-function WebAbsentResults({ leads, onSelect }: { leads: Lead[]; onSelect: (l: Lead) => void }) {
-  return (
-    <div className="space-y-3">
-      {leads.map((lead, idx) => (
-        <motion.div
-          key={lead.domain_hash || idx}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: Math.min(idx * 0.04, 0.5) }}
-          onClick={() => onSelect(lead)}
-          className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-primary)] hover:border-[var(--border-light)] cursor-pointer transition-all hover:shadow-sm"
-        >
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-red-bg)', color: 'var(--color-red)' }}>
-              <Globe className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <p className="text-sm font-medium text-[var(--text-primary)] truncate">{cleanVal(lead.company_name)}</p>
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[var(--color-red-bg)] text-[var(--color-red)] flex-shrink-0">No Website</span>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-[var(--text-tertiary)]">
-                {lead.address && lead.address !== 'ABSENT' && (
-                  <span className="truncate">{cleanVal(lead.address)}</span>
-                )}
-                {lead.engine_data?.category && (
-                  <span>{lead.engine_data.category}</span>
-                )}
-                {lead.verified_email && lead.verified_email !== 'ABSENT' && (
-                  <span className="text-[var(--color-green)] flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> {lead.verified_email}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      ))}
-    </div>
+    </motion.div>
   )
 }
 
 // ============================================================
 // INSPECTOR PANEL CONTENT
 // ============================================================
-function InspectorContent({ lead, onClose }: { lead: Lead; onClose: () => void }) {
+function InspectorContent({
+  lead,
+  onClose,
+}: {
+  lead: Lead
+  onClose: () => void
+}) {
   return (
-    <div className="p-6">
+    <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-bold text-[var(--text-primary)]">Lead Details</h2>
-        <button
-          onClick={onClose}
-          className="w-8 h-8 rounded-lg hover:bg-[var(--bg-primary)] flex items-center justify-center transition-colors"
-        >
+      <div className="px-6 py-4 border-b border-[var(--border-color)] flex items-center justify-between flex-shrink-0">
+        <h3 className="font-semibold text-[var(--text-primary)] truncate">{lead.company_name}</h3>
+        <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-[var(--bg-primary)] flex items-center justify-center transition-colors">
           <X className="w-4 h-4 text-[var(--text-secondary)]" />
         </button>
       </div>
 
-      {/* Company Section */}
-      <div className="space-y-4">
-        <InspectorField label="Company" value={lead.company_name} />
-        {lead.website_url === 'NONE' || lead.website_url === 'ABSENT' ? (
-          <div>
-            <p className="text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-1">Website</p>
-            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg bg-[var(--color-red-bg)] text-[var(--color-red)]">
-              <Globe className="w-3 h-3" /> No Website
-            </span>
-          </div>
-        ) : (
-          <InspectorField label="Website" value={lead.website_url} isLink />
-        )}
-        <InspectorField label="Decision Maker" value={lead.dm_name} />
-        <InspectorField label="Position" value={lead.dm_position} />
-        {!(lead.engine_type === 'social_intent' && lead.verified_email === 'ABSENT') && (
-          <InspectorField label="Verified Email" value={lead.verified_email} />
-        )}
-        <InspectorField label="Phone" value={lead.phone} />
-        <InspectorField label="LinkedIn" value={lead.linkedin} isLink />
-        <InspectorField label="Instagram" value={lead.instagram} isLink />
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Company Info */}
+        <div>
+          <p className="text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-3">Company</p>
+          <h4 className="text-lg font-bold text-[var(--text-primary)] mb-1">{lead.company_name}</h4>
+          {lead.website_url && (
+            <a href={lead.website_url} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--color-accent)] hover:underline flex items-center gap-1">
+              {lead.website_url} <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+          {lead.address && <p className="text-sm text-[var(--text-secondary)] mt-1">{lead.address}</p>}
+        </div>
 
-        {/* Engine-specific fields */}
-        {lead.engine_type === 'ads_intent' && lead.ad_platform && lead.ad_platform !== 'ABSENT' && (
-          <InspectorField label="Ad Platform" value={lead.ad_platform} />
-        )}
-        {lead.engine_type === 'web_absent' && lead.aggregator_source && lead.aggregator_source !== 'ABSENT' && (
-          <InspectorField label="Source" value={lead.aggregator_source} />
-        )}
-        {lead.engine_type === 'social_intent' && lead.platform && lead.platform !== 'ABSENT' && (
-          <InspectorField label="Platform" value={lead.platform} />
-        )}
+        {/* Decision Maker */}
+        <div>
+          <p className="text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-3">Decision Maker</p>
+          <p className="text-[var(--text-primary)] font-medium">{lead.dm_name || 'Not found'}</p>
+          {lead.dm_position && <p className="text-sm text-[var(--text-secondary)]">{lead.dm_position}</p>}
+        </div>
 
-        {/* Verification Badges */}
-        <div className="pt-4 border-t border-[var(--border-color)]">
-          <p className="text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-3">Verification</p>
-          <div className="space-y-2.5">
-            {lead.verified_email && lead.verified_email !== 'ABSENT' ? (
-              lead.is_catchall ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-[var(--color-orange)]" />
-                  <span className="text-sm text-[var(--color-orange)] font-medium">Inbox Handshake: Catch-All Detected</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-[var(--color-green)]" />
-                  <span className="text-sm text-[var(--color-green)] font-medium">Inbox Handshake: Verified</span>
-                </div>
-              )
-            ) : (
+        {/* Contact Details */}
+        <div>
+          <p className="text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-3">Contact</p>
+          <div className="space-y-2">
+            {lead.verified_email && (
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-[var(--text-tertiary)]" />
-                <span className="text-sm text-[var(--text-tertiary)]">Email not available</span>
+                <CheckCircle2 className="w-4 h-4 text-[#16A34A]" />
+                <span className="text-sm text-[var(--text-primary)]">{lead.verified_email}</span>
+                {lead.is_catchall && <span className="text-[10px] text-amber-500 font-medium ml-1">(catchall)</span>}
+              </div>
+            )}
+            {lead.phone && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[var(--text-secondary)]">{lead.phone}</span>
               </div>
             )}
           </div>
         </div>
+
+        {/* Social Links */}
+        {(lead.linkedin || lead.instagram) && (
+          <div>
+            <p className="text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-3">Social</p>
+            <div className="space-y-2">
+              {lead.linkedin && (
+                <a href={lead.linkedin} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--color-accent)] hover:underline flex items-center gap-1">
+                  LinkedIn <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+              {lead.instagram && (
+                <a href={lead.instagram} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--color-accent)] hover:underline flex items-center gap-1">
+                  Instagram <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-function InspectorField({ label, value, isLink = false }: { label: string; value?: string; isLink?: boolean }) {
-  if (!value || value === 'ABSENT' || value === 'NONE') {
-    return (
-      <div>
-        <p className="text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-1">{label}</p>
-        <p className="text-sm text-[var(--text-tertiary)]">—</p>
-      </div>
-    )
-  }
-
+// ============================================================
+// SETTINGS MODAL
+// ============================================================
+function SettingsModalContent({
+  user,
+  onClose,
+  onSignOut,
+}: {
+  user: any
+  onClose: () => void
+  onSignOut: () => void
+}) {
   return (
-    <div>
-      <p className="text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-1">{label}</p>
-      {isLink && value.startsWith('http') ? (
-        <a
-          href={value}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm text-[var(--color-accent)] hover:underline flex items-center gap-1"
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-semibold text-[var(--text-primary)]">Settings</h3>
+        <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-[var(--bg-surface)] flex items-center justify-center">
+          <X className="w-4 h-4 text-[var(--text-secondary)]" />
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        {/* Account */}
+        <div className="p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-purple)] flex items-center justify-center">
+              <span className="text-white font-bold text-sm">
+                {user?.firstName?.[0] || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || 'U'}
+              </span>
+            </div>
+            <div>
+              <p className="font-medium text-[var(--text-primary)] text-sm">
+                {user?.fullName || user?.firstName || 'User'}
+              </p>
+              <p className="text-xs text-[var(--text-secondary)]">
+                {user?.emailAddresses?.[0]?.emailAddress || 'No email'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Sign Out */}
+        <button
+          onClick={onSignOut}
+          className="w-full flex items-center gap-2.5 px-4 py-3 rounded-xl border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
         >
-          {value.replace(/^https?:\/\//, '')}
-          <ExternalLink className="w-3 h-3" />
-        </a>
-      ) : isLink && value !== '' ? (
-        <a
-          href={value.startsWith('http') ? value : `https://${value}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm text-[var(--color-accent)] hover:underline flex items-center gap-1"
-        >
-          {value}
-          <ExternalLink className="w-3 h-3" />
-        </a>
-      ) : (
-        <p className="text-sm text-[var(--text-primary)]">{value}</p>
-      )}
+          <LogOut className="w-4 h-4" />
+          Sign Out
+        </button>
+      </div>
     </div>
   )
 }
@@ -1419,189 +1303,40 @@ function PaymentModal({
   currentBalance: number
 }) {
   return (
-    <div>
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-[var(--border-color)] flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Coins className="w-5 h-5 text-[var(--color-coin)]" />
-          <h2 className="text-base font-bold text-[var(--text-primary)]">Get More Coins</h2>
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold text-[var(--text-primary)]">Get More Coins</h3>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">Current balance: {currentBalance} coins</p>
         </div>
-        <button
-          onClick={onClose}
-          className="w-8 h-8 rounded-lg hover:bg-[var(--bg-surface)] flex items-center justify-center transition-colors"
-        >
+        <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-[var(--bg-surface)] flex items-center justify-center">
           <X className="w-4 h-4 text-[var(--text-secondary)]" />
         </button>
       </div>
 
-      {/* Current balance */}
-      <div className="px-6 pt-4 pb-2">
-        <div className="rounded-xl bg-[var(--bg-surface)] p-4 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-            <Coins className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <p className="text-xs text-[var(--text-tertiary)]">Current Balance</p>
-            <p className="text-lg font-bold text-[var(--color-coin)]">{currentBalance.toLocaleString()} coins</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Packages */}
-      <div className="px-6 py-4 space-y-3">
-        {COIN_PACKAGES.map((pkg, idx) => {
-          const perCoin = (pkg.price / pkg.coins).toFixed(1)
-          return (
-            <motion.div
-              key={pkg.coins}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.06 }}
-              className="flex items-center justify-between p-4 rounded-xl border border-[var(--border-color)] hover:border-[var(--border-light)] transition-all group"
-            >
-              <div>
-                <p className="text-sm font-semibold text-[var(--text-primary)]">{pkg.label}</p>
-                <p className="text-xs text-[var(--text-tertiary)]">₦{perCoin} per coin</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <p className="text-sm font-bold text-[var(--text-primary)]">₦{pkg.price.toLocaleString()}</p>
-                <motion.button
-                  onClick={() => onBuy(pkg)}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-purple)] text-white text-xs font-semibold shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <CreditCard className="w-3.5 h-3.5" />
-                  Buy
-                </motion.button>
-              </div>
-            </motion.div>
-          )
-        })}
-      </div>
-
-      {/* Footer */}
-      <div className="px-6 py-3 border-t border-[var(--border-color)]">
-        <p className="text-[11px] text-[var(--text-tertiary)] text-center">
-          Secure payment via Paystack. Coins are added instantly after payment.
-        </p>
-      </div>
-    </div>
-  )
-}
-
-// ============================================================
-// SETTINGS MODAL CONTENT
-// ============================================================
-function SettingsModalContent({
-  user,
-  onClose,
-  onSignOut,
-}: {
-  user: UserResource | undefined | null
-  onClose: () => void
-  onSignOut: () => void
-}) {
-  const [darkMode, setDarkMode] = useState(false)
-
-  // Sync dark mode on mount
-  useEffect(() => {
-    const isDark = document.documentElement.classList.contains('dark')
-    setDarkMode(isDark)
-  }, [])
-
-  const toggleDarkMode = () => {
-    const next = !darkMode
-    setDarkMode(next)
-    document.documentElement.classList.toggle('dark', next)
-  }
-
-  const email = user?.emailAddresses?.[0]?.emailAddress
-  const name = user?.fullName || user?.username || ''
-
-  return (
-    <div>
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-[var(--border-color)] flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Settings className="w-5 h-5 text-[var(--text-secondary)]" />
-          <h2 className="text-base font-bold text-[var(--text-primary)]">Settings</h2>
-        </div>
-        <button
-          onClick={onClose}
-          className="w-8 h-8 rounded-lg hover:bg-[var(--bg-surface)] flex items-center justify-center transition-colors"
-        >
-          <X className="w-4 h-4 text-[var(--text-secondary)]" />
-        </button>
-      </div>
-
-      {/* Profile Section */}
-      <div className="px-6 py-5 border-b border-[var(--border-color)]">
-        <p className="text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-3">Profile</p>
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-purple)] flex items-center justify-center flex-shrink-0">
-            {user?.imageUrl ? (
-              <img src={user.imageUrl} alt="Avatar" className="w-12 h-12 rounded-xl object-cover" />
-            ) : (
-              <User className="w-6 h-6 text-white" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{name || 'User'}</p>
-            <p className="text-xs text-[var(--text-secondary)] truncate">{email || 'No email'}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Preferences */}
-      <div className="px-6 py-5 border-b border-[var(--border-color)]">
-        <p className="text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-3">Preferences</p>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {darkMode ? (
-              <Moon className="w-4 h-4 text-[var(--text-secondary)]" />
-            ) : (
-              <Sun className="w-4 h-4 text-[var(--text-secondary)]" />
-            )}
-            <div>
-              <p className="text-sm text-[var(--text-primary)]">Dark Mode</p>
-              <p className="text-xs text-[var(--text-tertiary)]">Toggle the theme appearance</p>
-            </div>
-          </div>
+      <div className="space-y-3">
+        {COIN_PACKAGES.map((pkg) => (
           <button
-            onClick={toggleDarkMode}
-            className={`relative w-11 h-6 rounded-full transition-colors ${darkMode ? 'bg-[var(--color-accent)]' : 'bg-[var(--bg-surface)]'}`}
+            key={pkg.coins}
+            onClick={() => onBuy(pkg)}
+            className="w-full flex items-center justify-between p-4 rounded-xl border border-[var(--border-color)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all group"
           >
-            <span
-              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${darkMode ? 'translate-x-5' : ''}`}
-            />
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                <Coins className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-semibold text-[var(--text-primary)] text-sm">{pkg.label}</span>
+            </div>
+            <span className="text-sm font-medium text-[var(--text-secondary)] group-hover:text-[var(--color-accent)] transition-colors">
+              {pkg.currency === 'USD' ? '$' : '\u20A6'}{pkg.price.toLocaleString()}
+            </span>
           </button>
-        </div>
+        ))}
       </div>
 
-      {/* Sign Out */}
-      <div className="px-6 py-4">
-        <button
-          onClick={onSignOut}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
-        >
-          <LogOut className="w-4 h-4" />
-          Sign Out
-        </button>
-      </div>
+      <p className="text-[10px] text-[var(--text-tertiary)] text-center mt-4">
+        Secure payment via Paystack. Coins added instantly.
+      </p>
     </div>
   )
-}
-
-// ============================================================
-// UTILITY FUNCTIONS
-// ============================================================
-function cleanVal(val: string | undefined | null): string {
-  if (!val || val === 'ABSENT' || val === 'NONE') return '—'
-  return val
-}
-
-function cleanPhone(phone: string | undefined | null): string {
-  if (!phone || phone === 'ABSENT') return '—'
-  return phone
 }

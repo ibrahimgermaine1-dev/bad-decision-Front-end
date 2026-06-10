@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAuth } from '@clerk/nextjs'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import {
@@ -17,7 +16,19 @@ import {
   Loader2,
 } from 'lucide-react'
 import { getUserTasks } from '@/lib/backend'
+import { isClerkConfigured } from '@/lib/clerk-config'
 import type { EngineType } from '@/stores/app-store'
+
+// Safe Clerk hook
+let useAuth: any = () => ({ isSignedIn: false, userId: null })
+if (typeof window !== 'undefined') {
+  try {
+    const clerk = require('@clerk/nextjs')
+    if (isClerkConfigured()) {
+      useAuth = clerk.useAuth
+    }
+  } catch {}
+}
 
 type TaskStatus = 'completed' | 'processing' | 'failed'
 
@@ -40,7 +51,7 @@ const engineConfig: Record<EngineType, { name: string; icon: React.ReactNode; co
 }
 
 export default function HistoryPage() {
-  const { userId } = useAuth()
+  const { userId, isSignedIn } = useAuth()
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +59,29 @@ export default function HistoryPage() {
   const [searchFilter, setSearchFilter] = useState('')
   const [engineFilter, setEngineFilter] = useState<EngineType | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
+
+  // Not signed in guard
+  if (!isSignedIn) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto px-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-purple)] flex items-center justify-center mx-auto mb-6 shadow-lg shadow-[var(--color-accent)]/20">
+            <span className="text-white font-bold text-lg">BD</span>
+          </div>
+          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-2">Sign in to continue</h2>
+          <p className="text-sm text-[var(--text-secondary)] mb-6">
+            You need an account to view search history.
+          </p>
+          <a
+            href="/sign-in"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-purple)] text-white text-sm font-semibold shadow-lg hover:shadow-xl transition-shadow"
+          >
+            Sign In
+          </a>
+        </div>
+      </div>
+    )
+  }
 
   // Fetch real tasks from backend
   useEffect(() => {
@@ -91,12 +125,12 @@ export default function HistoryPage() {
   const totalCoins = history.reduce((sum, item) => sum + item.coinsUsed, 0)
 
   return (
-    <div className="min-h-screen bg-[var(--color-midnight)]">
+    <div className="min-h-screen bg-[var(--bg-primary)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Back nav */}
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] mb-6 transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Dashboard
@@ -108,8 +142,8 @@ export default function HistoryPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">Search History</h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-2">Search History</h1>
+          <p className="text-sm text-[var(--text-secondary)]">
             Every search you have run. Every lead you have found. All in one place.
           </p>
         </motion.div>
@@ -123,14 +157,14 @@ export default function HistoryPage() {
             >
               <Loader2 className="w-8 h-8 text-[var(--color-accent)]" />
             </motion.div>
-            <span className="ml-3 text-sm text-[var(--color-text-secondary)]">Loading history...</span>
+            <span className="ml-3 text-sm text-[var(--text-secondary)]">Loading history...</span>
           </div>
         )}
 
         {/* Error State */}
         {!loading && error && (
           <div className="text-center py-16">
-            <p className="text-sm text-[var(--color-red)]">{error}</p>
+            <p className="text-sm text-red-500">{error}</p>
             <button
               onClick={() => window.location.reload()}
               className="mt-4 text-sm text-[var(--color-accent)] hover:underline"
@@ -145,37 +179,37 @@ export default function HistoryPage() {
           <>
             {/* Summary stats */}
             <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] p-4">
-                <p className="text-2xl font-bold text-[var(--color-text-primary)]">{history.length}</p>
-                <p className="text-xs text-[var(--color-text-tertiary)]">Total Searches</p>
+              <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] p-4">
+                <p className="text-2xl font-bold text-[var(--text-primary)]">{history.length}</p>
+                <p className="text-xs text-[var(--text-tertiary)]">Total Searches</p>
               </div>
-              <div className="rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] p-4">
-                <p className="text-2xl font-bold text-[var(--color-text-primary)]">{totalLeads}</p>
-                <p className="text-xs text-[var(--color-text-tertiary)]">Leads Found</p>
+              <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] p-4">
+                <p className="text-2xl font-bold text-[var(--text-primary)]">{totalLeads}</p>
+                <p className="text-xs text-[var(--text-tertiary)]">Leads Found</p>
               </div>
-              <div className="rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] p-4">
+              <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] p-4">
                 <p className="text-2xl font-bold text-[var(--color-coin)]">{totalCoins}</p>
-                <p className="text-xs text-[var(--color-text-tertiary)]">Coins Spent</p>
+                <p className="text-xs text-[var(--text-tertiary)]">Coins Spent</p>
               </div>
             </div>
 
             {/* Filters */}
             <div className="flex flex-col sm:flex-row gap-3 mb-6">
               <div className="relative flex-1">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" />
                 <input
                   type="text"
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
                   placeholder="Search your history..."
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
                 />
               </div>
               <div className="flex gap-2">
                 <select
                   value={engineFilter}
                   onChange={(e) => setEngineFilter(e.target.value as EngineType | 'all')}
-                  className="px-3 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] focus:outline-none focus:border-[var(--color-accent)]"
+                  className="px-3 py-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-sm text-[var(--text-secondary)] focus:outline-none focus:border-[var(--color-accent)]"
                 >
                   <option value="all">All Engines</option>
                   <option value="ads_intent">Ads Intent</option>
@@ -186,7 +220,7 @@ export default function HistoryPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as TaskStatus | 'all')}
-                  className="px-3 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] focus:outline-none focus:border-[var(--color-accent)]"
+                  className="px-3 py-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-sm text-[var(--text-secondary)] focus:outline-none focus:border-[var(--color-accent)]"
                 >
                   <option value="all">All Status</option>
                   <option value="completed">Done</option>
@@ -213,7 +247,7 @@ export default function HistoryPage() {
                   >
                     <Link
                       href={`/dashboard/results/${item.id}`}
-                      className="flex items-center justify-between p-4 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-border-light)] transition-all group"
+                      className="flex items-center justify-between p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[var(--color-accent)]/30 transition-all group"
                     >
                       <div className="flex items-center gap-4 flex-1 min-w-0">
                         <div
@@ -223,18 +257,18 @@ export default function HistoryPage() {
                           {engine.icon}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                          <p className="text-sm font-medium text-[var(--text-primary)] truncate">
                             {item.query}
                           </p>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-[var(--color-text-tertiary)]">{item.location}</span>
-                            <span className="text-xs text-[var(--color-text-tertiary)]">|</span>
-                            <span className="text-xs text-[var(--color-text-tertiary)]">{dateStr} {timeStr}</span>
+                            <span className="text-xs text-[var(--text-tertiary)]">{item.location}</span>
+                            <span className="text-xs text-[var(--text-tertiary)]">|</span>
+                            <span className="text-xs text-[var(--text-tertiary)]">{dateStr} {timeStr}</span>
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-4 shrink-0">
-                        <div className="hidden sm:flex items-center gap-3 text-xs text-[var(--color-text-tertiary)]">
+                        <div className="hidden sm:flex items-center gap-3 text-xs text-[var(--text-tertiary)]">
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
                             {item.leadCount} leads
@@ -253,7 +287,7 @@ export default function HistoryPage() {
                         }`}>
                           {item.status === 'completed' ? 'Done' : item.status === 'processing' ? 'Working' : 'Failed'}
                         </span>
-                        <ChevronRight className="w-4 h-4 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-secondary)] group-hover:translate-x-0.5 transition-all" />
+                        <ChevronRight className="w-4 h-4 text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)] group-hover:translate-x-0.5 transition-all" />
                       </div>
                     </Link>
                   </motion.div>
@@ -264,7 +298,7 @@ export default function HistoryPage() {
             {/* Empty state */}
             {filteredHistory.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-sm text-[var(--color-text-secondary)]">
+                <p className="text-sm text-[var(--text-secondary)]">
                   {history.length === 0
                     ? 'No searches yet. Start your first search from the dashboard.'
                     : 'No searches match your filters'}

@@ -1,4 +1,7 @@
-import { SignIn } from '@clerk/nextjs'
+export const dynamic = 'force-dynamic'
+
+import { isClerkConfigured } from '@/lib/clerk-config'
+import { SafeSignIn } from '@/components/safe-clerk-auth'
 
 export default function SignInPage() {
   return (
@@ -14,30 +17,7 @@ export default function SignInPage() {
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Welcome back</h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">Sign in to find verified leads</p>
         </div>
-        <SignIn
-          appearance={{
-            elements: {
-              rootBox: 'w-full',
-              card: 'rounded-2xl border border-[var(--border-color)] shadow-sm bg-[var(--bg-primary)]',
-              headerTitle: 'hidden',
-              headerSubtitle: 'hidden',
-              formButtonPrimary: 'bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-purple)] hover:opacity-90 text-white h-11 font-semibold rounded-xl',
-              formFieldInput: 'border-[var(--border-color)] h-11 rounded-xl bg-[var(--bg-surface)]',
-              footerActionLink: 'text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] font-medium',
-              socialButtonsBlockButton: 'border-[var(--border-color)] h-11 font-medium text-[var(--text-primary)] rounded-xl',
-              dividerLine: 'bg-[var(--border-color)]',
-              dividerText: 'text-[var(--text-tertiary)] text-xs',
-              formFieldLabel: 'text-[var(--text-secondary)] font-medium',
-              identityPreviewText: 'text-[var(--text-primary)]',
-              alertText: 'text-sm',
-            },
-          }}
-          signUpUrl="/sign-up"
-          forceSignUpUrl="/sign-up"
-          redirectUrl="/dashboard"
-          afterSignUpUrl="/dashboard"
-          afterSignInUrl="/dashboard"
-        />
+        <SafeSignIn />
       </div>
     </div>
   )

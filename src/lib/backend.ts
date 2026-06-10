@@ -4,7 +4,7 @@
  * All search tasks and lead fetching go through here.
  */
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://bad-decision-backend-main.onrender.com'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'https://bad-decision-backend-main.onrender.com'
 
 export async function createTask(params: {
   user_id: string
