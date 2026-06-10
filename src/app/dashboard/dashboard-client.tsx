@@ -22,7 +22,7 @@ import {
   Loader2, TrendingUp, ExternalLink, Shield, CreditCard, Plus, User, Moon, Sun,
 } from 'lucide-react'
 import { useAppStore, type EngineType, type Lead, type SmartCollection } from '@/stores/app-store'
-import { createTask, getUserTasks, getCollectionLeads, pollTaskUntilDone } from '@/lib/backend'
+import { createTask, getUserTasks, getCollectionLeads, getLeadsByTaskId, pollTaskUntilDone, fetchPaystackPublicKey } from '@/lib/backend'
 import { exportLeadsToCsv, downloadCsv } from '@/lib/csv-shield'
 import { locationData, getCountriesForContinent, getStatesForCountry } from '@/lib/locations'
 import { isClerkConfigured } from '@/lib/clerk-config'
@@ -211,29 +211,20 @@ export function DashboardContent({
   // ============================================================
   useEffect(() => {
     if (!userId) return
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    if (!supabaseUrl || supabaseUrl.includes('placeholder')) return
-
-    let supabase: any
-    try {
-      const mod = require('@/lib/supabase-client')
-      supabase = mod.getSupabase()
-      if (!supabase) return
-    } catch { return }
 
     const refresh = async () => {
       try {
-        const { data } = await supabase
-          .from('usage_ledger')
-          .select('coins_balance, coins_reserved, coins_lifetime')
-          .eq('user_id', userId)
-          .single()
-        if (data) {
-          setCoinBalance({
-            coins_balance: data.coins_balance,
-            coins_reserved: data.coins_reserved,
-            coins_lifetime: data.coins_lifetime,
-          })
+        const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://bad-decision-backend-main.onrender.com'
+        const res = await fetch(`${BACKEND_URL}/api/coins/${userId}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.balance) {
+            setCoinBalance({
+              coins_balance: data.balance.coins_balance,
+              coins_reserved: data.balance.coins_reserved,
+              coins_lifetime: data.balance.coins_lifetime,
+            })
+          }
         }
       } catch { /* silent */ }
     }
@@ -255,7 +246,7 @@ export function DashboardContent({
             id: t.id,
             name: t.query || 'Untitled Search',
             task_type: t.task_type as EngineType,
-            lead_count: t.lead_count || 0,
+            lead_count: t.results_count || t.lead_count || 0,
             created_at: t.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
           }))
           setCollections(mapped)
@@ -290,7 +281,14 @@ export function DashboardContent({
         coins_reserved: engineConfig.coinCost,
       })
 
-      const taskId = taskData.task_id || taskData.id
+      // Backend returns {success: true, task: [{id: "uuid", ...}]}
+      const taskId = taskData.task?.[0]?.id || taskData.task_id || taskData.id
+
+      if (!taskId) {
+        console.error('[DASHBOARD] No task ID in response:', taskData)
+        throw new Error('Failed to create search task — no task ID returned')
+      }
+
       deductCoins(engineConfig.coinCost)
 
       const completedTask = await pollTaskUntilDone(userId, taskId, 90, (status: string) => {
@@ -298,7 +296,15 @@ export function DashboardContent({
       })
 
       if (completedTask && (completedTask.status === 'completed' || completedTask.status === 'exhausted')) {
-        const leadsData = await getCollectionLeads(taskId)
+        // Try fetching leads by task_id first (more reliable), then by collection_id
+        let leadsData: any = { leads: [] }
+        try {
+          leadsData = await getLeadsByTaskId(taskId)
+        } catch {
+          try {
+            leadsData = await getCollectionLeads(taskId)
+          } catch { /* fallback empty */ }
+        }
         setLeads(leadsData.leads || [])
       } else {
         setLeads([])
@@ -315,7 +321,7 @@ export function DashboardContent({
             id: t.id,
             name: t.query || 'Untitled Search',
             task_type: t.task_type as EngineType,
-            lead_count: t.lead_count || 0,
+            lead_count: t.results_count || t.lead_count || 0,
             created_at: t.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
           }))
           setCollections(updated)
@@ -335,7 +341,15 @@ export function DashboardContent({
   const handleSelectCollection = useCallback(async (col: SmartCollection) => {
     if (!userId) return
     try {
-      const data = await getCollectionLeads(col.id)
+      // Try fetching leads by task_id first, then collection_id
+      let data: any = { leads: [] }
+      try {
+        data = await getLeadsByTaskId(col.id)
+      } catch {
+        try {
+          data = await getCollectionLeads(col.id)
+        } catch { /* fallback */ }
+      }
       if (data.leads && data.leads.length > 0) {
         setLeads(data.leads)
         setSelectedEngine(col.task_type)
@@ -359,46 +373,58 @@ export function DashboardContent({
   // ============================================================
   // PAYSTACK PAYMENT
   // ============================================================
+  const [paystackKey, setPaystackKey] = useState<string>('')
+
+  // Fetch Paystack public key from backend on mount
+  useEffect(() => {
+    fetchPaystackPublicKey().then(key => {
+      if (key) setPaystackKey(key)
+    })
+  }, [])
+
   const handleBuyCoins = useCallback((pkg: typeof COIN_PACKAGES[0]) => {
+    const publicKey = paystackKey || process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY
+    if (!publicKey || publicKey === 'pk_test_xxx' || !publicKey.startsWith('pk_')) {
+      alert('Payment system is not configured yet. Please contact support or try again later.')
+      return
+    }
+
     loadPaystackScript(() => {
       const email = user?.emailAddresses?.[0]?.emailAddress
       if (!email || !userId) return
 
       const ref = `bd_${userId}_${Date.now()}`
       ;(window as any).PaystackPop.setup({
-        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY || 'pk_test_xxx',
+        key: publicKey,
         email,
-        amount: pkg.price,
+        amount: pkg.price * 100, // Paystack expects amount in kobo (cents)
         currency: 'NGN',
         reference: ref,
         onClose: () => {},
         callback: async () => {
           addCoins(pkg.coins)
           setPaymentModalOpen(false)
-          // Refresh balance from Supabase
+          // Refresh balance from backend
           if (userId) {
             try {
-              const mod = require('@/lib/supabase-client')
-              const supabase = mod.getSupabase()
-              if (!supabase) return
-              const { data } = await supabase
-                .from('usage_ledger')
-                .select('coins_balance, coins_reserved, coins_lifetime')
-                .eq('user_id', userId)
-                .single()
-              if (data) {
-                setCoinBalance({
-                  coins_balance: data.coins_balance,
-                  coins_reserved: data.coins_reserved,
-                  coins_lifetime: data.coins_lifetime,
-                })
+              const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://bad-decision-backend-main.onrender.com'
+              const res = await fetch(`${BACKEND_URL}/api/coins/${userId}`)
+              if (res.ok) {
+                const data = await res.json()
+                if (data.balance) {
+                  setCoinBalance({
+                    coins_balance: data.balance.coins_balance,
+                    coins_reserved: data.balance.coins_reserved,
+                    coins_lifetime: data.balance.coins_lifetime,
+                  })
+                }
               }
             } catch { /* silent */ }
           }
         },
       }).openIframe()
     })
-  }, [user, userId, addCoins, setCoinBalance])
+  }, [user, userId, addCoins, setCoinBalance, paystackKey])
 
   // ============================================================
   // NEW SEARCH — Reset state

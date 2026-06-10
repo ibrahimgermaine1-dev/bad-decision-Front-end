@@ -40,6 +40,14 @@ export async function getCollectionLeads(collectionId: string) {
   return res.json()
 }
 
+export async function getLeadsByTaskId(taskId: string) {
+  const res = await fetch(`${BACKEND_URL}/api/leads/task/${taskId}`)
+  if (!res.ok) {
+    throw new Error(`Get leads by task failed: ${res.status}`)
+  }
+  return res.json()
+}
+
 // ============================================================
 // TYPES — Engine-specific data structures
 // ============================================================
@@ -80,26 +88,42 @@ export async function getUserCollections(userId: string) {
   return res.json()
 }
 
+export async function fetchPaystackPublicKey(): Promise<string> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/pricing`)
+    if (res.ok) {
+      const data = await res.json()
+      return data.paystack_public_key || ''
+    }
+  } catch {}
+  return ''
+}
+
 export async function pollTaskUntilDone(
   userId: string,
   taskId: string,
-  maxAttempts = 60,
+  maxAttempts = 90,
   onStatusChange?: (status: string) => void
 ): Promise<any> {
   for (let i = 0; i < maxAttempts; i++) {
-    const data = await getUserTasks(userId)
-    const task = data.tasks?.find((t: any) => t.id === taskId)
-    if (!task) {
-      await new Promise((r) => setTimeout(r, 3000))
-      continue
+    try {
+      const data = await getUserTasks(userId)
+      const task = data.tasks?.find((t: any) => t.id === taskId)
+      if (!task) {
+        if (onStatusChange) onStatusChange('pending')
+        await new Promise((r) => setTimeout(r, 3000))
+        continue
+      }
+      if (onStatusChange) onStatusChange(task.status)
+      if (
+        task.status === 'completed' ||
+        task.status === 'exhausted' ||
+        task.status === 'failed'
+      )
+        return task
+    } catch (err) {
+      console.error('[POLL] Error fetching tasks:', err)
     }
-    if (onStatusChange) onStatusChange(task.status)
-    if (
-      task.status === 'completed' ||
-      task.status === 'exhausted' ||
-      task.status === 'failed'
-    )
-      return task
     await new Promise((r) => setTimeout(r, 3000))
   }
   throw new Error('Task polling timeout')

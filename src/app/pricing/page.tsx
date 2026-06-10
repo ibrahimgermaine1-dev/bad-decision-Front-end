@@ -75,13 +75,13 @@ export default function PricingPage() {
       router.push('/dashboard')
       return
     }
-    setLoadingPlan(planId)
-    setTimeout(() => setLoadingPlan(null), 2000)
+    // Redirect to sign-in if not authenticated — Paystack requires email
+    router.push(`/sign-up?redirect=/pricing&plan=${planId}`)
   }
 
   const handleBuyCoins = async (packageId: string) => {
-    setLoadingPlan(packageId)
-    setTimeout(() => setLoadingPlan(null), 2000)
+    // Redirect to sign-in if not authenticated — Paystack requires email
+    router.push(`/sign-up?redirect=/pricing&coins=${packageId}`)
   }
 
   return (
