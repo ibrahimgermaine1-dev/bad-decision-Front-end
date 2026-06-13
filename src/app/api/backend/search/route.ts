@@ -1,7 +1,7 @@
 /**
  * Backend Proxy: POST /api/backend/search
  * Forwards search requests to the FastAPI backend with auth.
- * Keeps BACKEND_URL and BACKEND_API_SECRET server-side only.
+ * BUG 5 FIX: Uses correct endpoint /api/tasks/create with proper field mapping.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
@@ -30,13 +30,18 @@ export async function POST(req: NextRequest) {
     }
     if (apiSecret) headers['X-API-Secret'] = apiSecret
 
-    const res = await fetch(`${backendUrl}/api/search`, {
+    // BUG 5 FIX: Use correct backend endpoint /api/tasks/create
+    // Map frontend "engine" field to backend "task_type" field
+    const res = await fetch(`${backendUrl}/api/tasks/create`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        engine: body.engine,
-        query: body.query,
         user_id: userId,
+        task_type: body.engine,      // frontend "engine" -> backend "task_type"
+        query: body.query,
+        coins_reserved: body.coins_reserved || 2,
+        country: body.country || '',
+        state_region: body.state_region || '',
       }),
     })
 

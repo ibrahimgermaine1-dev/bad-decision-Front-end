@@ -1,6 +1,6 @@
 /**
  * Paystack Webhook — Add coins after successful payment
- * Uses Supabase REST API via fetch instead of SDK.
+ * SECURED: Always validates signature. Rejects if secret is missing.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
@@ -9,7 +9,11 @@ export const dynamic = 'force-dynamic'
 
 function verifyPaystackSignature(payload: string, signature: string): boolean {
   const secret = process.env.PAYSTACK_SECRET_KEY
-  if (!secret) return true
+  // VULN 4 FIX: Reject when secret is missing instead of accepting
+  if (!secret) {
+    console.error('[PAYSTACK_WEBHOOK] PAYSTACK_SECRET_KEY not configured — rejecting webhook')
+    return false
+  }
   const hash = createHmac('sha512', secret).update(payload).digest('hex')
   return hash === signature
 }
@@ -36,6 +40,11 @@ export async function POST(req: NextRequest) {
 
     const rawBody = await req.text()
     const signature = req.headers.get('x-paystack-signature') || ''
+
+    // VULN 4 FIX: Always verify signature, reject if invalid or secret missing
+    if (!signature) {
+      return NextResponse.json({ error: 'Missing signature' }, { status: 401 })
+    }
     if (!verifyPaystackSignature(rawBody, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
@@ -47,6 +56,7 @@ export async function POST(req: NextRequest) {
     const userEmail = data.customer?.email
     const amount = data.amount
     const currency = data.currency || 'NGN'
+    const reference = data.reference || ''
     if (!userEmail) return NextResponse.json({ error: 'No email' }, { status: 400 })
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -101,7 +111,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    console.log(`[PAYSTACK_WEBHOOK] Payment: ${userEmail} -> ${coinsToAdd} coins${purchasedTier ? ` (${purchasedTier})` : ''}`)
+    console.log(`[PAYSTACK_WEBHOOK] Payment verified: ${userEmail} -> ${coinsToAdd} coins${purchasedTier ? ` (${purchasedTier})` : ''} ref=${reference}`)
     return NextResponse.json({ ok: true, coins_added: coinsToAdd, tier: purchasedTier })
   } catch (error: any) {
     console.error('[PAYSTACK_WEBHOOK] Error:', error)

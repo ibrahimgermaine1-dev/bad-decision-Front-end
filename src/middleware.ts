@@ -1,18 +1,28 @@
 /**
- * Middleware — Simplified for build compatibility.
- * Auth protection is handled client-side and in API route handlers.
- * Clerk middleware is only active when a valid Clerk key exists.
+ * Clerk Auth Middleware
+ * Protects dashboard and API routes. Public pages don't require auth.
+ * Uses Clerk's built-in middleware for authentication.
  */
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 
-export function middleware(request: NextRequest) {
-  // All auth is handled:
-  // - Client-side: by ClerkProvider + useAuth() in components
-  // - API routes: by auth() from @clerk/nextjs/server in each route handler
-  // This middleware just passes through.
-  return NextResponse.next()
-}
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/sso-callback',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/pricing',
+  '/faq',
+  '/api/webhooks/clerk',
+  '/api/webhooks/paystack',
+])
+
+export default clerkMiddleware(async (auth, request) => {
+  // Public routes don't need auth
+  if (isPublicRoute(request)) return
+
+  // All other routes require authentication
+  await auth.protect()
+})
 
 export const config = {
   matcher: [

@@ -1,7 +1,8 @@
 /**
- * Bad Decision AI — Backend API Client
+ * Bad Decision AI — Frontend API Client
  * All calls go through Next.js API proxy routes (same origin, no CORS issues).
  * BACKEND_URL and BACKEND_API_SECRET stay server-side only.
+ * BUG 4 FIX: Collections now fetched through proxy, no client-side anon key.
  */
 import type { CoinBalance, Lead, SmartCollection, EngineType } from '@/stores/app-store'
 
@@ -41,11 +42,11 @@ export interface CoinBalanceResponse {
  * Start a search task on the backend.
  * The proxy route adds user_id and auth headers automatically.
  */
-export async function startSearch(engine: EngineType, query: string): Promise<SearchResponse> {
+export async function startSearch(engine: EngineType, query: string, country?: string, stateRegion?: string): Promise<SearchResponse> {
   const res = await fetch('/api/backend/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ engine, query }),
+    body: JSON.stringify({ engine, query, country, state_region: stateRegion }),
   })
 
   const data = await res.json()
@@ -94,29 +95,16 @@ export async function fetchCoinBalance(): Promise<CoinBalanceResponse> {
 }
 
 /**
- * Fetch user's search collections from Supabase directly.
- * Uses the anon key (respects RLS).
+ * Fetch user's search collections.
+ * BUG 4 FIX: Now routes through the Next.js proxy instead of
+ * using the anon key client-side. The proxy adds auth and
+ * queries Supabase with the service role key.
  */
 export async function fetchCollections(userId: string): Promise<SmartCollection[]> {
   try {
-    // Use Supabase REST API directly via fetch (no SDK needed)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !anonKey || supabaseUrl.includes('placeholder')) {
-      console.warn('[API] Supabase not configured — skipping collections fetch')
-      return []
-    }
-
-    const res = await fetch(
-      `${supabaseUrl}/rest/v1/search_tasks?select=id,query,engine,status,created_at&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=20`,
-      {
-        headers: {
-          'apikey': anonKey,
-          'Authorization': `Bearer ${anonKey}`,
-        },
-      }
-    )
+    const res = await fetch('/api/backend/collections', {
+      method: 'GET',
+    })
 
     if (!res.ok) {
       console.error('[API] Collections fetch error:', await res.text())

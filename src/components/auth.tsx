@@ -51,9 +51,13 @@ function SignUpForm({ setView }: { setView: (v: AppView) => void }) {
           setScanComplete(true)
         }
       } catch (err) {
-        // FingerprintJS failed — still allow signup, just no fingerprint
-        console.warn('[FingerprintJS] Load failed:', err)
-        if (mounted) setScanComplete(true)
+        // BUG 3 FIX: FingerprintJS is a hard requirement for fraud prevention.
+        // Block signup when it fails (missing API key, network error, etc.)
+        console.error('[FingerprintJS] Load failed — signup blocked:', err)
+        if (mounted) {
+          setScanComplete(false)
+          setError('Security scan failed. Please refresh the page and try again. If the problem persists, contact support.')
+        }
       }
     }
     loadFingerprint()

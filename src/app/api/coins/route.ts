@@ -1,8 +1,10 @@
 /**
  * Coins API — Get balance, deduct, add
- * Uses Supabase REST API via fetch instead of SDK.
+ * SECURED: All endpoints require Clerk authentication.
+ * Users can only access/modify their own coin data.
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,15 +20,24 @@ function supabaseHeaders(): Record<string, string> | null {
 }
 
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get('user_id')
-  if (!userId) return NextResponse.json({ error: 'user_id required' }, { status: 400 })
+  // VULN 3 FIX: Require authentication
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const requestedUserId = req.nextUrl.searchParams.get('user_id')
+  // Users can only query their own balance
+  if (requestedUserId && requestedUserId !== userId) {
+    return NextResponse.json({ error: 'Forbidden: cannot access other user data' }, { status: 403 })
+  }
+
+  const targetUserId = requestedUserId || userId
 
   const headers = supabaseHeaders()
   if (!headers) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/usage_ledger?select=*&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+    `${supabaseUrl}/rest/v1/usage_ledger?select=*&user_id=eq.${encodeURIComponent(targetUserId)}&limit=1`,
     { headers }
   )
   if (!res.ok) {
@@ -42,8 +53,17 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // VULN 3 FIX: Require authentication + verify ownership
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { user_id, action, amount } = await req.json()
   if (!user_id || !action || !amount) return NextResponse.json({ error: 'user_id, action, and amount required' }, { status: 400 })
+
+  // Users can only modify their own coins
+  if (user_id !== userId) {
+    return NextResponse.json({ error: 'Forbidden: cannot modify other user data' }, { status: 403 })
+  }
 
   const headers = supabaseHeaders()
   if (!headers) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })

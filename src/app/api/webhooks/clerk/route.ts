@@ -1,6 +1,6 @@
 /**
  * Clerk Webhook — Auto-create profile + usage_ledger on sign-up
- * Uses fetch to backend API instead of direct Supabase client.
+ * SECURED: Always verifies Svix signature. Rejects if secret is missing.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { Webhook } from 'svix'
@@ -14,24 +14,30 @@ export async function POST(req: NextRequest) {
     const svixSignature = req.headers.get('svix-signature')
     const clerkWebhookSecret = process.env.CLERK_WEBHOOK_SECRET || ''
 
-    let body: any
-    let rawBody: string
+    // VULN 5 FIX: Always require signature verification
+    if (!clerkWebhookSecret) {
+      console.error('[CLERK_WEBHOOK] CLERK_WEBHOOK_SECRET not configured — rejecting webhook')
+      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
+    }
 
-    if (clerkWebhookSecret && svixId && svixTimestamp && svixSignature) {
-      rawBody = await req.text()
-      const wh = new Webhook(clerkWebhookSecret)
-      try {
-        body = wh.verify(rawBody, {
-          'svix-id': svixId,
-          'svix-timestamp': svixTimestamp,
-          'svix-signature': svixSignature,
-        })
-      } catch (err) {
-        console.error('[CLERK_WEBHOOK] Svix verification failed:', err)
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-      }
-    } else {
-      body = await req.json()
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      console.error('[CLERK_WEBHOOK] Missing Svix headers — rejecting webhook')
+      return NextResponse.json({ error: 'Missing verification headers' }, { status: 401 })
+    }
+
+    const rawBody = await req.text()
+    const wh = new Webhook(clerkWebhookSecret)
+
+    let body: any
+    try {
+      body = wh.verify(rawBody, {
+        'svix-id': svixId,
+        'svix-timestamp': svixTimestamp,
+        'svix-signature': svixSignature,
+      })
+    } catch (err) {
+      console.error('[CLERK_WEBHOOK] Svix verification failed:', err)
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
 
     return await handleClerkEvent(body)
