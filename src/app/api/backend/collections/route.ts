@@ -2,14 +2,25 @@
  * Backend Proxy: GET /api/backend/collections
  * Fetches user's search task history from Supabase.
  * Uses service role key server-side (no client-side anon key exposure).
+ * Rate limited.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
+    // Rate limit
+    const rateLimitResult = checkRateLimit(req, { maxRequests: 30, windowMs: 60000 })
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait.' },
+        { status: 429 }
+      )
+    }
+
     const { userId } = await auth()
 
     if (!userId) {

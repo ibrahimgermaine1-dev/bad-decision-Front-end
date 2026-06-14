@@ -1,15 +1,26 @@
 /**
  * Paystack Webhook — Add coins after successful payment
  * SECURED: Always validates signature. Rejects if secret is missing.
+ * Rate limited. Idempotent (skips duplicate references).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
+import { checkWebhookRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
+// In-memory set of recently processed references to prevent duplicate processing
+const processedReferences = new Set<string>()
+
+// Clean up old references every 10 minutes
+setInterval(() => {
+  if (processedReferences.size > 10000) {
+    processedReferences.clear()
+  }
+}, 600000)
+
 function verifyPaystackSignature(payload: string, signature: string): boolean {
   const secret = process.env.PAYSTACK_SECRET_KEY
-  // VULN 4 FIX: Reject when secret is missing instead of accepting
   if (!secret) {
     console.error('[PAYSTACK_WEBHOOK] PAYSTACK_SECRET_KEY not configured — rejecting webhook')
     return false
@@ -32,6 +43,12 @@ function supabaseHeaders(): Record<string, string> | null {
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit webhooks
+    const rateLimitResult = checkWebhookRateLimit(req)
+    if (!rateLimitResult.success) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 })
+    }
+
     const headers = supabaseHeaders()
     if (!headers) {
       console.error('[PAYSTACK_WEBHOOK] Supabase not configured')
@@ -41,7 +58,7 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text()
     const signature = req.headers.get('x-paystack-signature') || ''
 
-    // VULN 4 FIX: Always verify signature, reject if invalid or secret missing
+    // Always verify signature, reject if invalid or secret missing
     if (!signature) {
       return NextResponse.json({ error: 'Missing signature' }, { status: 401 })
     }
@@ -58,6 +75,12 @@ export async function POST(req: NextRequest) {
     const currency = data.currency || 'NGN'
     const reference = data.reference || ''
     if (!userEmail) return NextResponse.json({ error: 'No email' }, { status: 400 })
+
+    // IDEMPOTENCY: Skip if this reference was already processed
+    if (reference && processedReferences.has(reference)) {
+      console.log(`[PAYSTACK_WEBHOOK] Duplicate reference skipped: ${reference}`)
+      return NextResponse.json({ ok: true, duplicate: true })
+    }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 
@@ -104,11 +127,16 @@ export async function POST(req: NextRequest) {
 
     // Upgrade tier
     if (purchasedTier) {
-      await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
+      await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify({ tier: purchasedTier }),
       })
+    }
+
+    // Mark reference as processed
+    if (reference) {
+      processedReferences.add(reference)
     }
 
     console.log(`[PAYSTACK_WEBHOOK] Payment verified: ${userEmail} -> ${coinsToAdd} coins${purchasedTier ? ` (${purchasedTier})` : ''} ref=${reference}`)

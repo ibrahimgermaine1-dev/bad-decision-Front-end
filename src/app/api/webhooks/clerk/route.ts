@@ -1,20 +1,28 @@
 /**
  * Clerk Webhook — Auto-create profile + usage_ledger on sign-up
  * SECURED: Always verifies Svix signature. Rejects if secret is missing.
+ * Rate limited to prevent abuse.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { Webhook } from 'svix'
+import { checkWebhookRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit webhooks
+    const rateLimitResult = checkWebhookRateLimit(req)
+    if (!rateLimitResult.success) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 })
+    }
+
     const svixId = req.headers.get('svix-id')
     const svixTimestamp = req.headers.get('svix-timestamp')
     const svixSignature = req.headers.get('svix-signature')
     const clerkWebhookSecret = process.env.CLERK_WEBHOOK_SECRET || ''
 
-    // VULN 5 FIX: Always require signature verification
+    // Always require signature verification
     if (!clerkWebhookSecret) {
       console.error('[CLERK_WEBHOOK] CLERK_WEBHOOK_SECRET not configured — rejecting webhook')
       return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
@@ -56,6 +64,14 @@ async function handleClerkEvent(body: any) {
   const fullName = `${data.first_name || ''} ${data.last_name || ''}`.trim()
   const deviceFingerprint = data.unsafe_metadata?.device_fingerprint || ''
 
+  // VULN 6 FIX: Validate all inputs before database operations
+  if (!userId || typeof userId !== 'string' || userId.length > 256) {
+    return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 })
+  }
+  if (!email || typeof email !== 'string' || !email.includes('@')) {
+    return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -72,7 +88,7 @@ async function handleClerkEvent(body: any) {
   }
 
   // Check for duplicate device fingerprint
-  if (deviceFingerprint) {
+  if (deviceFingerprint && typeof deviceFingerprint === 'string' && deviceFingerprint.length <= 256) {
     const checkRes = await fetch(
       `${supabaseUrl}/rest/v1/profiles?select=id&device_fingerprint=eq.${encodeURIComponent(deviceFingerprint)}&limit=1`,
       { headers }
@@ -95,9 +111,9 @@ async function handleClerkEvent(body: any) {
     body: JSON.stringify({
       id: userId,
       email,
-      full_name: fullName,
+      full_name: fullName.slice(0, 256), // Limit length
       tier: 'free',
-      device_fingerprint: deviceFingerprint || null,
+      device_fingerprint: deviceFingerprint ? deviceFingerprint.slice(0, 256) : null,
     }),
   })
 

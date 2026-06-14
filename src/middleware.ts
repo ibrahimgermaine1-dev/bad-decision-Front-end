@@ -1,6 +1,7 @@
 /**
  * Clerk Auth Middleware
- * Protects dashboard and API routes. Public pages don't require auth.
+ * Protects dashboard routes. Public pages and API routes don't require
+ * middleware-level auth (API routes have their own auth() checks).
  * Uses Clerk's built-in middleware for authentication.
  */
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
@@ -14,6 +15,9 @@ const isPublicRoute = createRouteMatcher([
   '/faq',
   '/api/webhooks/clerk',
   '/api/webhooks/paystack',
+  '/api/coins(.*)',
+  '/api/backend/(.*)',
+  '/api/payments/(.*)',
 ])
 
 export default clerkMiddleware(async (auth, request) => {

@@ -2,17 +2,28 @@
  * Backend Proxy: GET /api/backend/tasks/status?taskId=xxx
  * Polls task status from the FastAPI backend.
  * Falls back to direct Supabase REST API if backend is down.
- *
+ * Rate limited. Input validated.
+ * 
  * Uses query param instead of path param to avoid bracket folder names
  * that break GitHub's web upload interface.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
+    // Rate limit
+    const rateLimitResult = checkRateLimit(req, { maxRequests: 60, windowMs: 60000 })
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait.' },
+        { status: 429 }
+      )
+    }
+
     const { userId } = await auth()
 
     if (!userId) {
@@ -23,6 +34,11 @@ export async function GET(req: NextRequest) {
 
     if (!taskId) {
       return NextResponse.json({ error: 'taskId required' }, { status: 400 })
+    }
+
+    // VULN 6 FIX: Validate taskId format strictly
+    if (!/^[a-zA-Z0-9_-]+$/.test(taskId) || taskId.length > 256) {
+      return NextResponse.json({ error: 'Invalid taskId format' }, { status: 400 })
     }
 
     const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || ''
@@ -37,7 +53,7 @@ export async function GET(req: NextRequest) {
     }
     if (apiSecret) headers['X-API-Secret'] = apiSecret
 
-    const res = await fetch(`${backendUrl}/api/tasks/${taskId}`, {
+    const res = await fetch(`${backendUrl}/api/tasks/${encodeURIComponent(taskId)}`, {
       method: 'GET',
       headers,
     })

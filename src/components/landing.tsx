@@ -8,9 +8,11 @@
 import { useAppStore } from '@/stores/app-store'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export function LandingPage() {
   const { setView } = useAppStore()
+  const router = useRouter()
 
   return (
     <div className="min-h-screen">
@@ -26,15 +28,19 @@ export function LandingPage() {
           <div className="hidden md:flex items-center gap-8">
             <Link href="/pricing" className="text-sm text-[#0F172A] hover:text-[#2563EB] transition-colors">Pricing</Link>
             <Link href="/faq" className="text-sm text-[#0F172A] hover:text-[#2563EB] transition-colors">FAQ</Link>
-            <button onClick={() => setView('contact')} className="text-sm text-[#0F172A] hover:text-[#2563EB] transition-colors">Contact</button>
+            <a href="mailto:support@baddecision.ai" className="text-sm text-[#0F172A] hover:text-[#2563EB] transition-colors">Contact</a>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={() => setView('signin')} className="border-[#E2E8F0] text-[#0F172A]">
-              Sign In
-            </Button>
-            <Button size="sm" onClick={() => setView('signup')} className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white">
-              Get Started
-            </Button>
+            <Link href="/sign-in">
+              <Button variant="outline" size="sm" className="border-[#E2E8F0] text-[#0F172A]">
+                Sign In
+              </Button>
+            </Link>
+            <Link href="/sign-up">
+              <Button size="sm" className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white">
+                Get Started
+              </Button>
+            </Link>
           </div>
         </div>
       </nav>
@@ -50,13 +56,14 @@ export function LandingPage() {
             Our smart app finds real business contacts for you. It checks every email to make sure it works before you pay.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              size="lg"
-              onClick={() => setView('signup')}
-              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-8 py-6 text-base font-semibold"
-            >
-              Deploy Your Matrix
-            </Button>
+            <Link href="/sign-up">
+              <Button
+                size="lg"
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-8 py-6 text-base font-semibold"
+              >
+                Deploy Your Matrix
+              </Button>
+            </Link>
             <Button
               size="lg"
               variant="outline"
@@ -150,13 +157,14 @@ export function LandingPage() {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white">Stop Paying For Dead Emails.</h2>
           <p className="mt-4 text-[#94A3B8] text-lg">Get 50 free contacts when you sign up. No credit card needed.</p>
-          <Button
-            size="lg"
-            onClick={() => setView('signup')}
-            className="mt-8 bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-10 py-6 text-base font-semibold"
-          >
-            Deploy Your Matrix
-          </Button>
+          <Link href="/sign-up">
+            <Button
+              size="lg"
+              className="mt-8 bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-10 py-6 text-base font-semibold"
+            >
+              Deploy Your Matrix
+            </Button>
+          </Link>
         </div>
       </section>
 
@@ -173,7 +181,7 @@ export function LandingPage() {
             <div className="flex items-center gap-8">
               <Link href="/pricing" className="text-[#94A3B8] hover:text-white text-sm transition-colors">Pricing</Link>
               <Link href="/faq" className="text-[#94A3B8] hover:text-white text-sm transition-colors">FAQ</Link>
-              <button onClick={() => setView('contact')} className="text-[#94A3B8] hover:text-white text-sm transition-colors">Contact</button>
+              <a href="mailto:support@baddecision.ai" className="text-[#94A3B8] hover:text-white text-sm transition-colors">Contact</a>
             </div>
             <p className="text-[#475569] text-sm">2026 Bad Decision AI. All rights reserved.</p>
           </div>

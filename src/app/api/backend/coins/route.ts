@@ -2,14 +2,25 @@
  * Backend Proxy: GET /api/backend/coins
  * Fetches user coin balance from the FastAPI backend.
  * Falls back to direct Supabase REST API if backend is down.
+ * Rate limited.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
+    // Rate limit
+    const rateLimitResult = checkRateLimit(req, { maxRequests: 30, windowMs: 60000 })
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait.' },
+        { status: 429 }
+      )
+    }
+
     const { userId } = await auth()
 
     if (!userId) {
@@ -29,14 +40,14 @@ export async function GET(req: NextRequest) {
     if (apiSecret) headers['X-API-Secret'] = apiSecret
 
     // Try the backend's coins balance endpoint
-    let res = await fetch(`${backendUrl}/api/coins/balance?user_id=${userId}`, {
+    let res = await fetch(`${backendUrl}/api/coins/balance?user_id=${encodeURIComponent(userId)}`, {
       method: 'GET',
       headers,
     })
 
     if (!res.ok) {
       // Fallback: try /api/profile/coins
-      res = await fetch(`${backendUrl}/api/profile/coins?user_id=${userId}`, {
+      res = await fetch(`${backendUrl}/api/profile/coins?user_id=${encodeURIComponent(userId)}`, {
         method: 'GET',
         headers,
       })

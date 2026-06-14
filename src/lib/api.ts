@@ -3,6 +3,7 @@
  * All calls go through Next.js API proxy routes (same origin, no CORS issues).
  * BACKEND_URL and BACKEND_API_SECRET stay server-side only.
  * BUG 4 FIX: Collections now fetched through proxy, no client-side anon key.
+ * BUG 1 FIX: Paystack payments verified server-side before updating UI.
  */
 import type { CoinBalance, Lead, SmartCollection, EngineType } from '@/stores/app-store'
 
@@ -92,6 +93,37 @@ export async function fetchCoinBalance(): Promise<CoinBalanceResponse> {
   const data = await res.json()
   // Backend may return { balance: { coins_balance, ... } } or flat object
   return data.balance || data
+}
+
+/**
+ * Verify a Paystack payment server-side.
+ * BUG 1 FIX: After Paystack popup callback, verify with our server
+ * before trusting the payment and updating the UI balance.
+ * Returns the verified balance if successful.
+ */
+export async function verifyPayment(reference: string): Promise<{ verified: boolean; balance?: CoinBalanceResponse; status?: string }> {
+  try {
+    const res = await fetch('/api/payments/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reference }),
+    })
+
+    const data = await res.json()
+
+    if (!res.ok || !data.verified) {
+      return { verified: false, status: data.status || 'failed' }
+    }
+
+    return {
+      verified: true,
+      status: data.status,
+      balance: data.balance,
+    }
+  } catch (err) {
+    console.error('[API] Payment verification failed:', err)
+    return { verified: false, status: 'error' }
+  }
 }
 
 /**

@@ -350,7 +350,8 @@ function SignInForm({ setView }: { setView: (v: AppView) => void }) {
                       identifier: email,
                     })
                     const firstFactor = result.supportedFirstFactors?.find(
-                      (f: any) => f.strategy === 'reset_password_email_code'
+                      (f): f is Extract<typeof f, { strategy: 'reset_password_email_code' }> =>
+                        f.strategy === 'reset_password_email_code'
                     )
                     if (firstFactor) {
                       await signIn.prepareFirstFactor({ strategy: 'reset_password_email_code', emailAddressId: firstFactor.emailAddressId })

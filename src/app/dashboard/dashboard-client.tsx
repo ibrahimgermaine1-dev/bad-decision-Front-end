@@ -20,7 +20,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth, useUser, useClerk } from '@clerk/nextjs'
 import Script from 'next/script'
 import { useAppStore, type AppView, type EngineType, type Lead } from '@/stores/app-store'
-import { startSearch, pollUntilComplete, fetchCoinBalance } from '@/lib/api'
+import { startSearch, pollUntilComplete, fetchCoinBalance, verifyPayment } from '@/lib/api'
 import { TIERS, COIN_ADDONS, type TierId, getTierById, formatPrice, formatAddonPrice, isEngineAvailable } from '@/lib/pricing'
 import { COUNTRIES, getStates, searchCountries, getPopularCountries, countryCodeToFlag } from '@/lib/locations'
 import { Button } from '@/components/ui/button'
@@ -889,18 +889,57 @@ function CoinVault() {
               { display_name: 'Coins', variable_name: 'coins', value: tier.coins.toString() },
             ],
           },
-          callback: () => {
-            setTimeout(async () => {
-              try {
-                const balance = await fetchCoinBalance()
-                setCoinBalance({
-                  coins_balance: balance.coins_balance ?? 0,
-                  coins_reserved: balance.coins_reserved ?? 0,
-                  coins_lifetime: balance.coins_lifetime ?? 0,
-                })
-              } catch {}
-            }, 3000)
-            setTier(tierId)
+          callback: (response: any) => {
+            // BUG 1 FIX: Verify payment server-side before updating UI
+            const reference = response?.reference || ''
+            if (reference) {
+              verifyPayment(reference).then((result) => {
+                if (result.verified && result.balance) {
+                  setCoinBalance({
+                    coins_balance: result.balance.coins_balance ?? 0,
+                    coins_reserved: result.balance.coins_reserved ?? 0,
+                    coins_lifetime: result.balance.coins_lifetime ?? 0,
+                  })
+                  setTier(tierId)
+                } else {
+                  // Verification failed — fall back to balance refresh
+                  console.warn('[CoinVault] Payment verification pending, refreshing balance...')
+                  fetchCoinBalance().then(balance => {
+                    setCoinBalance({
+                      coins_balance: balance.coins_balance ?? 0,
+                      coins_reserved: balance.coins_reserved ?? 0,
+                      coins_lifetime: balance.coins_lifetime ?? 0,
+                    })
+                  }).catch(() => {})
+                  setTier(tierId)
+                }
+              }).catch(() => {
+                // Network error — still refresh balance optimistically
+                setTimeout(() => {
+                  fetchCoinBalance().then(balance => {
+                    setCoinBalance({
+                      coins_balance: balance.coins_balance ?? 0,
+                      coins_reserved: balance.coins_reserved ?? 0,
+                      coins_lifetime: balance.coins_lifetime ?? 0,
+                    })
+                  }).catch(() => {})
+                }, 3000)
+                setTier(tierId)
+              })
+            } else {
+              // No reference — fall back to old behavior
+              setTimeout(async () => {
+                try {
+                  const balance = await fetchCoinBalance()
+                  setCoinBalance({
+                    coins_balance: balance.coins_balance ?? 0,
+                    coins_reserved: balance.coins_reserved ?? 0,
+                    coins_lifetime: balance.coins_lifetime ?? 0,
+                  })
+                } catch {}
+              }, 3000)
+              setTier(tierId)
+            }
             setPaystackLoading(null)
           },
           onClose: () => {
@@ -946,17 +985,52 @@ function CoinVault() {
               { display_name: 'Coins', variable_name: 'coins', value: addon.coins.toString() },
             ],
           },
-          callback: () => {
-            setTimeout(async () => {
-              try {
-                const balance = await fetchCoinBalance()
-                setCoinBalance({
-                  coins_balance: balance.coins_balance ?? 0,
-                  coins_reserved: balance.coins_reserved ?? 0,
-                  coins_lifetime: balance.coins_lifetime ?? 0,
-                })
-              } catch {}
-            }, 3000)
+          callback: (response: any) => {
+            // BUG 1 FIX: Verify payment server-side before updating UI
+            const reference = response?.reference || ''
+            if (reference) {
+              verifyPayment(reference).then((result) => {
+                if (result.verified && result.balance) {
+                  setCoinBalance({
+                    coins_balance: result.balance.coins_balance ?? 0,
+                    coins_reserved: result.balance.coins_reserved ?? 0,
+                    coins_lifetime: result.balance.coins_lifetime ?? 0,
+                  })
+                } else {
+                  // Verification failed — fall back to balance refresh
+                  console.warn('[CoinVault] Coin addon verification pending, refreshing balance...')
+                  fetchCoinBalance().then(balance => {
+                    setCoinBalance({
+                      coins_balance: balance.coins_balance ?? 0,
+                      coins_reserved: balance.coins_reserved ?? 0,
+                      coins_lifetime: balance.coins_lifetime ?? 0,
+                    })
+                  }).catch(() => {})
+                }
+              }).catch(() => {
+                // Network error — still refresh balance optimistically
+                setTimeout(() => {
+                  fetchCoinBalance().then(balance => {
+                    setCoinBalance({
+                      coins_balance: balance.coins_balance ?? 0,
+                      coins_reserved: balance.coins_reserved ?? 0,
+                      coins_lifetime: balance.coins_lifetime ?? 0,
+                    })
+                  }).catch(() => {})
+                }, 3000)
+              })
+            } else {
+              setTimeout(async () => {
+                try {
+                  const balance = await fetchCoinBalance()
+                  setCoinBalance({
+                    coins_balance: balance.coins_balance ?? 0,
+                    coins_reserved: balance.coins_reserved ?? 0,
+                    coins_lifetime: balance.coins_lifetime ?? 0,
+                  })
+                } catch {}
+              }, 3000)
+            }
             setPaystackLoading(null)
           },
           onClose: () => {

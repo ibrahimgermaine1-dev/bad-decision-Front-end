@@ -11,7 +11,7 @@
 import { useState } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { useAppStore, type UserTier } from '@/stores/app-store'
-import { fetchCoinBalance } from '@/lib/api'
+import { fetchCoinBalance, verifyPayment } from '@/lib/api'
 import { TIERS, COIN_ADDONS, type TierId, getTierById, formatPrice, formatAddonPrice } from '@/lib/pricing'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -69,17 +69,42 @@ export default function PricingPage() {
               { display_name: 'Coins', variable_name: 'coins', value: selectedTier.coins.toString() },
             ],
           },
-          callback: () => {
-            setTimeout(async () => {
-              try {
-                const balance = await fetchCoinBalance()
-                setCoinBalance({
-                  coins_balance: balance.coins_balance ?? 0,
-                  coins_reserved: balance.coins_reserved ?? 0,
-                  coins_lifetime: balance.coins_lifetime ?? 0,
-                })
-              } catch {}
-            }, 3000)
+          callback: (response: any) => {
+            const reference = response?.reference || ''
+            if (reference) {
+              verifyPayment(reference).then((result) => {
+                if (result.verified && result.balance) {
+                  setCoinBalance({
+                    coins_balance: result.balance.coins_balance ?? 0,
+                    coins_reserved: result.balance.coins_reserved ?? 0,
+                    coins_lifetime: result.balance.coins_lifetime ?? 0,
+                  })
+                }
+              }).catch(() => {
+                // Verification failed — webhook may still process it
+                setTimeout(async () => {
+                  try {
+                    const balance = await fetchCoinBalance()
+                    setCoinBalance({
+                      coins_balance: balance.coins_balance ?? 0,
+                      coins_reserved: balance.coins_reserved ?? 0,
+                      coins_lifetime: balance.coins_lifetime ?? 0,
+                    })
+                  } catch {}
+                }, 3000)
+              })
+            } else {
+              setTimeout(async () => {
+                try {
+                  const balance = await fetchCoinBalance()
+                  setCoinBalance({
+                    coins_balance: balance.coins_balance ?? 0,
+                    coins_reserved: balance.coins_reserved ?? 0,
+                    coins_lifetime: balance.coins_lifetime ?? 0,
+                  })
+                } catch {}
+              }, 3000)
+            }
             setTier(tierId)
             setPaymentProcessing(false)
             router.push('/')
@@ -131,18 +156,44 @@ export default function PricingPage() {
               { display_name: 'Coins', variable_name: 'coins', value: addon.coins.toString() },
             ],
           },
-          callback: () => {
-            setTimeout(async () => {
-              try {
-                const balance = await fetchCoinBalance()
-                setCoinBalance({
-                  coins_balance: balance.coins_balance ?? 0,
-                  coins_reserved: balance.coins_reserved ?? 0,
-                  coins_lifetime: balance.coins_lifetime ?? 0,
-                })
-              } catch {}
-            }, 3000)
-            setPaymentProcessing(false)
+          callback: (response: any) => {
+            const reference = response?.reference || ''
+            if (reference) {
+              verifyPayment(reference).then((result) => {
+                if (result.verified && result.balance) {
+                  setCoinBalance({
+                    coins_balance: result.balance.coins_balance ?? 0,
+                    coins_reserved: result.balance.coins_reserved ?? 0,
+                    coins_lifetime: result.balance.coins_lifetime ?? 0,
+                  })
+                }
+                setPaymentProcessing(false)
+              }).catch(() => {
+                setTimeout(async () => {
+                  try {
+                    const balance = await fetchCoinBalance()
+                    setCoinBalance({
+                      coins_balance: balance.coins_balance ?? 0,
+                      coins_reserved: balance.coins_reserved ?? 0,
+                      coins_lifetime: balance.coins_lifetime ?? 0,
+                    })
+                  } catch {}
+                }, 3000)
+                setPaymentProcessing(false)
+              })
+            } else {
+              setTimeout(async () => {
+                try {
+                  const balance = await fetchCoinBalance()
+                  setCoinBalance({
+                    coins_balance: balance.coins_balance ?? 0,
+                    coins_reserved: balance.coins_reserved ?? 0,
+                    coins_lifetime: balance.coins_lifetime ?? 0,
+                  })
+                } catch {}
+              }, 3000)
+              setPaymentProcessing(false)
+            }
           },
           onClose: () => {
             setPaymentProcessing(false)
