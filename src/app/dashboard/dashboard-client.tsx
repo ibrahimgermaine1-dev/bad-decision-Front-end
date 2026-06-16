@@ -137,7 +137,7 @@ export function DashboardShell() {
     setLeads([])
 
     try {
-      const searchResult = await startSearch(selectedEngine, searchQuery)
+      const searchResult = await startSearch(selectedEngine, searchQuery, selectedCountry, selectedState)
 
       if (!searchResult.task_id) {
         throw new Error(searchResult.message || searchResult.detail || 'No task ID returned from backend')
