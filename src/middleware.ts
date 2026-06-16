@@ -1,10 +1,14 @@
 /**
- * Clerk Auth Middleware
+ * Clerk Auth Middleware — Resilient Version
  * Protects dashboard routes. Public pages and API routes don't require
  * middleware-level auth (API routes have their own auth() checks).
- * Uses Clerk's built-in middleware for authentication.
+ *
+ * FIX: Wrapped in try-catch to prevent MIDDLEWARE_INVOCATION_FAILED
+ * from crashing the entire site when Clerk keys are missing or
+ * the auth service is temporarily unavailable.
  */
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
+import { NextResponse } from 'next/server'
 
 const isPublicRoute = createRouteMatcher([
   '/',
@@ -25,7 +29,17 @@ export default clerkMiddleware(async (auth, request) => {
   if (isPublicRoute(request)) return
 
   // All other routes require authentication
-  await auth.protect()
+  // Wrapped in try-catch to prevent 500 MIDDLEWARE_INVOCATION_FAILED
+  try {
+    await auth.protect()
+  } catch (error) {
+    // If auth.protect() throws (e.g., Clerk keys not configured),
+    // redirect to sign-in instead of showing a 500 error page
+    console.error('[MIDDLEWARE] auth.protect() failed:', error)
+    const signInUrl = new URL('/sign-in', request.url)
+    signInUrl.searchParams.set('redirect_url', request.url)
+    return NextResponse.redirect(signInUrl)
+  }
 })
 
 export const config = {
