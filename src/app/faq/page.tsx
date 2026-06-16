@@ -1,12 +1,6 @@
 'use client'
 
-/**
- * FAQ PAGE — Dedicated /faq route
- * Accordion layout. First question: "Why is it called Bad Decision?"
- * No emojis. Direct-response copy.
- */
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
 interface FAQItem {
@@ -25,149 +19,178 @@ const FAQ_SECTIONS: FAQSection[] = [
     items: [
       {
         question: 'Why is it called Bad Decision?',
-        answer: 'Because buying old, stale email lists is a bad decision. Paying for contacts that bounce is a bad decision. Wasting your sales team\'s time on dead leads is a bad decision. We built this tool so you stop making bad decisions with your lead generation. Every other product sells you the same recycled garbage. We scan the live internet and verify every email. That is a good decision.',
+        answer: 'Because buying old email lists is a bad decision. Paying for contacts that bounce is a bad decision. Wasting your time on dead leads is a bad decision. We built this tool so you stop making bad decisions with your lead generation. We scan the live internet and verify every email. That is a good decision. The name is a reminder of what we help you avoid.',
+      },
+      {
+        question: 'How is this different from other lead tools?',
+        answer: 'Other tools sell you old lists. They do not test the emails. They do not care if half the list is dead. We do the opposite. We go find real buyers right now. We test every email before you pay. If the email does not work, you never see it. You only spend coins on contacts that can actually receive your message.',
+      },
+      {
+        question: 'Who built this and why?',
+        answer: 'A group of business owners who were sick of buying garbage leads. We ran agencies. We ran freelance shops. We ran sales teams. We all had the same problem. No one could find good leads. So we built the tool we wished existed. You can read the full story on our About page.',
       },
     ],
   },
   {
-    title: 'Data Quality',
+    title: 'How It Works',
     items: [
       {
-        question: 'How do you know the emails are real?',
-        answer: 'We connect to the mail server directly. We ask the server if the inbox exists. If the server says no, we drop the contact. You never pay for a dead email.',
+        question: 'What exactly happens when I search?',
+        answer: 'You type what you want. You pick a location. You hit search. Our system goes to the live internet and finds real businesses that match. It pulls their names, websites, decision makers, emails, phone numbers, and social links. Then it tests every email inbox. When it is done, you get a clean list of verified contacts.',
       },
       {
-        question: 'What does "Guaranteed Inbox Test" mean?',
-        answer: 'It means we connect to the mail server and verify the inbox is real. Not just that the domain exists. That the specific person at that company has a working inbox.',
+        question: 'How long does a search take?',
+        answer: 'Usually a few minutes. It depends on how many results are out there. You can wait on the page or come back later. The system works in the background. When it is done, your leads will be waiting in your dashboard.',
       },
       {
-        question: 'What happens when data is missing?',
-        answer: 'If we cannot find a piece of information, we mark it as ABSENT. We never guess. We never fill in fake data. You see exactly what we found and what we did not.',
+        question: 'What types of businesses can I search for?',
+        answer: 'Anything. Roofers. Dentists. Plumbers. Bakeries. Gyms. Agencies. Clinics. Stores. Restaurants. Lawyers. Accountants. If they exist on the internet, we can find them. Just type what you want and hit search.',
       },
       {
-        question: 'How fresh is the data?',
-        answer: 'We scan the live internet. Right now. Not last month. Not last year. When you search, our system goes out and finds what is real today.',
+        question: 'Can I search in any country?',
+        answer: 'Yes. You can search in any of 195 countries. You can filter by continent, country, and state or region. If you want roofers in Texas, you can find them. If you want bakeries in Lagos, you can find them. The world is yours.',
       },
     ],
   },
   {
-    title: 'The Coin Economy',
+    title: 'Emails and Testing',
     items: [
       {
-        question: 'What are coins?',
-        answer: 'Coins are how you pay for contacts. Each verified contact costs coins. The more verification we do, the more coins it costs. But you only pay when we find something real.',
+        question: 'Are the emails really tested?',
+        answer: 'Yes. Before we show you any email, we connect to the mail server and check if the inbox exists and can receive mail. If it cannot, you never see it. You only pay for emails that work. This is the whole point of what we built.',
       },
       {
-        question: 'Do I pay for searches that find nothing?',
-        answer: 'No. If our system finds zero contacts, you pay zero coins. You only pay when we deliver verified results.',
+        question: 'What happens if an email bounces anyway?',
+        answer: 'You get your coins back. No questions. No forms. No waiting. You tell us it bounced and we refund the coins. We are that confident in our testing. If we are wrong, you do not pay for our mistake.',
       },
       {
-        question: 'Do I pay for the same contact twice?',
-        answer: 'No. We remember every contact we ever found. If someone else already searched for the same business, you get that data for free. Zero coins.',
+        question: 'What is a catch-all email?',
+        answer: 'Some mail servers say yes to every email address you ask about. That makes it hard to know if a specific person really has an inbox there. We flag those for you so you know. Pro plan users get catch-all detection so you can decide whether to take the risk.',
       },
       {
-        question: 'How many coins does one contact cost?',
-        answer: 'A basic contact costs 1 coin. A contact with a decision maker costs 2 coins. A contact with a guaranteed tested inbox costs 3 coins. You choose the level of verification.',
+        question: 'Do you guarantee the email will land in the inbox?',
+        answer: 'We guarantee the email can receive mail. We cannot guarantee it lands in the main inbox instead of spam. That depends on your email provider, your sender reputation, and your message. But we can guarantee the address is real and can receive mail. That is more than any other vendor will promise.',
       },
     ],
   },
   {
-    title: 'Pricing & Plans',
+    title: 'Pricing and Coins',
     items: [
       {
-        question: 'What is the difference between plans?',
-        answer: 'The Free plan gives you 50 coins and 2 search engines. Starter gives you 1,500 coins and all 4 engines. Growth gives you 3,000 coins with 75 searches per day. Pro gives you 5,000 coins with unlimited searches. All paid plans include every search engine and priority verification.',
+        question: 'How many free leads do I get?',
+        answer: 'You get 50 free leads the moment you sign up. No credit card. No catch. You can run real searches and get real contacts. If you like what you see, you can buy more. If you do not, you walk away having lost nothing.',
       },
       {
-        question: 'Can I cancel anytime?',
-        answer: 'Yes. There are no long-term contracts. Cancel whenever you want. Your coins stay in your account until you use them.',
+        question: 'What is a coin?',
+        answer: 'A coin is what you spend to get a lead. Each verified contact costs a few coins. The cost depends on your plan. Free accounts pay 2 coins per lead. Paid accounts pay 1 to 3 coins depending on the plan. You always know the cost before you search.',
       },
       {
-        question: 'Do you offer refunds?',
-        answer: 'Coins that have not been used can be refunded within 7 days of purchase. Used coins are non-refundable since the service has already been delivered.',
+        question: 'Do coins expire?',
+        answer: 'No. Coins you buy are yours forever. Use them today. Use them next year. Use them whenever you want. They do not disappear.',
+      },
+      {
+        question: 'Can I cancel my plan?',
+        answer: 'Yes. Cancel anytime. No contracts. No fees. Keep your coins. Keep your leads. Keep your collections. If you want to come back later, your account will be waiting.',
+      },
+      {
+        question: 'What payment methods do you accept?',
+        answer: 'We use Paystack for payments. They accept cards from around the world. If you are in Nigeria, you can pay in Naira. If you are anywhere else, you can pay in your local currency. The price adjusts based on where you are.',
+      },
+      {
+        question: 'Do I need a plan to buy coins?',
+        answer: 'No. You can buy coins one at a time without any plan. Buy what you need, when you need it. Some people never buy a plan. They just top up coins when they run out. That works fine.',
       },
     ],
   },
   {
-    title: 'Account Security',
+    title: 'Account and Data',
     items: [
       {
-        question: 'How do you stop people from making free accounts over and over?',
-        answer: 'When you sign up, we scan your device hardware. This creates a unique fingerprint. If someone tries to sign up again from the same device, we block it. One device. One free trial.',
+        question: 'Is my data safe?',
+        answer: 'Yes. We do not sell your data. We do not share your data. Your searches are private. Your leads are private. Your account is protected by secure login. We take your privacy seriously because we would want the same.',
       },
       {
-        question: 'Can someone steal my coins?',
-        answer: 'Your coins are stored on our secure servers. Not on your computer. Nobody can change your balance except our system after a verified payment.',
+        question: 'Can I export my leads?',
+        answer: 'Yes. You can download your leads as a clean spreadsheet anytime. Phone numbers are protected so Excel does not mess them up. Emails are tested. Names are real. You can import them into any email tool or CRM.',
       },
       {
-        question: 'Is my payment information safe?',
-        answer: 'We use Paystack for all payments. Paystack is certified by the PCI Security Standards Council. We never see or store your card details.',
+        question: 'Can I share my account with my team?',
+        answer: 'Right now each account is for one person. If you need a team plan, contact us and we will work something out. We are building team features based on what people ask for.',
+      },
+      {
+        question: 'What happens to my leads if I cancel?',
+        answer: 'You keep them. Leads you have already downloaded are yours. Collections you have built are yours. We do not take them back. If you cancel, you just stop getting new coins. Everything you have earned stays yours.',
       },
     ],
   },
 ]
 
 export default function FAQPage() {
-  const [openIndex, setOpenIndex] = useState<string | null>(null)
+  const [openItems, setOpenItems] = useState<Set<string>>(new Set())
 
-  const toggleItem = (key: string) => {
-    setOpenIndex(openIndex === key ? null : key)
+  const toggle = (sectionIndex: number, itemIndex: number) => {
+    const key = `${sectionIndex}-${itemIndex}`
+    const newOpen = new Set(openItems)
+    if (newOpen.has(key)) {
+      newOpen.delete(key)
+    } else {
+      newOpen.add(key)
+    }
+    setOpenItems(newOpen)
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 bg-white border-b border-[#E2E8F0]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#2563EB] rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">BD</span>
-            </div>
-            <span className="font-semibold text-[#0F172A]">Bad Decision AI</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <Link href="/pricing" className="text-sm text-[#64748B] hover:text-[#2563EB] transition-colors">Pricing</Link>
+    <div className="bg-[#08080C]">
+      {/* Hero */}
+      <section className="bg-radial-glow bg-grid pt-16 pb-20 sm:pt-24 sm:pb-28">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="inline-block px-4 py-1.5 rounded-full bg-[#1A1535] border border-[#7C5CFC]/20 mb-6">
+            <span className="text-[12px] text-[#7C5CFC] font-semibold uppercase tracking-wider">Questions</span>
           </div>
-        </div>
-      </nav>
-
-      {/* Header */}
-      <section className="pt-16 sm:pt-20 pb-12">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-[#0F172A] tracking-tight">
-            Frequently Asked Questions.
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-[#F5F5F7] mb-6 leading-tight">
+            Everything you want to know.
           </h1>
-          <p className="mt-4 text-lg text-[#64748B]">Clear answers about our system.</p>
+          <p className="text-lg sm:text-xl text-[#A8A8B8] max-w-2xl mx-auto leading-relaxed">
+            If your question is not here, email us at support@baddecision.ai.
+            A real person will answer. Usually within a few hours.
+          </p>
         </div>
       </section>
 
       {/* FAQ Sections */}
       <section className="pb-20">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 space-y-12">
-          {FAQ_SECTIONS.map((section) => (
-            <div key={section.title}>
-              <h2 className="text-xl font-bold text-[#0F172A] mb-6">{section.title}</h2>
-              <div className="space-y-0">
-                {section.items.map((item, idx) => {
-                  const key = `${section.title}-${idx}`
-                  const isOpen = openIndex === key
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          {FAQ_SECTIONS.map((section, sectionIndex) => (
+            <div key={sectionIndex} className="mb-12">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#F5F5F7] mb-5">{section.title}</h2>
+              <div className="space-y-3">
+                {section.items.map((item, itemIndex) => {
+                  const key = `${sectionIndex}-${itemIndex}`
+                  const isOpen = openItems.has(key)
                   return (
-                    <div key={key} className="border-b border-[#E2E8F0]">
+                    <div
+                      key={itemIndex}
+                      className={`card-premium overflow-hidden transition-all ${
+                        isOpen ? 'border-[#7C5CFC]/30' : ''
+                      }`}
+                    >
                       <button
-                        onClick={() => toggleItem(key)}
-                        className="w-full py-5 flex items-center justify-between text-left"
+                        onClick={() => toggle(sectionIndex, itemIndex)}
+                        className="w-full flex items-center justify-between gap-4 p-5 sm:p-6 text-left"
                       >
-                        <span className="font-medium text-[#0F172A] pr-4">{item.question}</span>
+                        <span className="text-[15px] sm:text-base font-semibold text-[#F5F5F7]">{item.question}</span>
                         <svg
-                          className={`w-5 h-5 text-[#64748B] flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                          className={`w-5 h-5 flex-shrink-0 text-[#7C5CFC] transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </button>
                       {isOpen && (
-                        <div className="pb-5">
-                          <p className="text-[#475569] leading-relaxed">{item.answer}</p>
+                        <div className="px-5 sm:px-6 pb-5 sm:pb-6">
+                          <p className="text-[14px] sm:text-[15px] text-[#A8A8B8] leading-relaxed">{item.answer}</p>
                         </div>
                       )}
                     </div>
@@ -176,6 +199,32 @@ export default function FAQPage() {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Still Have Questions */}
+      <section className="py-20 bg-[#0E0E14] border-t border-[#25252F]">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold text-[#F5F5F7] mb-4">
+            Still have questions?
+          </h2>
+          <p className="text-lg text-[#A8A8B8] mb-8">
+            We are real people and we answer fast. Email us or start a free account and ask inside the dashboard.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/contact"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#7C5CFC] hover:bg-[#6B4CE6] text-white text-base font-semibold transition-all shadow-lg shadow-[#7C5CFC]/30"
+            >
+              Contact Us
+            </Link>
+            <Link
+              href="/sign-up"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#14141C] border border-[#25252F] hover:border-[#3D3D4A] text-[#F5F5F7] text-base font-semibold transition-all"
+            >
+              Get 50 Free Leads
+            </Link>
+          </div>
         </div>
       </section>
     </div>

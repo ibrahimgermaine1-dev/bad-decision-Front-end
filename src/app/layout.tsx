@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import { ClientProviders } from './client-providers'
+import { ConditionalChrome } from '@/components/conditional-chrome'
 import './globals.css'
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -10,15 +11,17 @@ const plusJakarta = Plus_Jakarta_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'Bad Decision AI — Stop Emailing Ghost Towns',
-  description: 'Our smart app finds real business contacts. It checks every email to make sure it works before you pay.',
+  title: 'Bad Decision AI — Find Real Buyers. Skip The Ghost Towns.',
+  description: 'We scan the live internet to find real businesses who want what you sell. Every email gets tested before you pay. No more dead lists. No more wasted money.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={plusJakarta.variable}>
-      <body className="font-sans antialiased">
-        <ClientProviders>{children}</ClientProviders>
+      <body className="font-sans antialiased bg-[#08080C] text-[#F5F5F7]">
+        <ClientProviders>
+          <ConditionalChrome>{children}</ConditionalChrome>
+        </ClientProviders>
       </body>
     </html>
   )
