@@ -2,6 +2,9 @@
  * Clerk Webhook — Auto-create profile + usage_ledger on sign-up
  * SECURED: Always verifies Svix signature. Rejects if secret is missing.
  * Rate limited to prevent abuse.
+ *
+ * NOTE: Device fingerprint multi-account blocking has been REMOVED.
+ * Multiple accounts per device are now allowed.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { Webhook } from 'svix'
@@ -62,9 +65,8 @@ async function handleClerkEvent(body: any) {
   const userId = data.id
   const email = data.email_addresses?.[0]?.email_address || ''
   const fullName = `${data.first_name || ''} ${data.last_name || ''}`.trim()
-  const deviceFingerprint = data.unsafe_metadata?.device_fingerprint || ''
 
-  // VULN 6 FIX: Validate all inputs before database operations
+  // Validate all inputs before database operations
   if (!userId || typeof userId !== 'string' || userId.length > 256) {
     return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 })
   }
@@ -87,33 +89,15 @@ async function handleClerkEvent(body: any) {
     'Prefer': 'return=minimal',
   }
 
-  // Check for duplicate device fingerprint
-  if (deviceFingerprint && typeof deviceFingerprint === 'string' && deviceFingerprint.length <= 256) {
-    const checkRes = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?select=id&device_fingerprint=eq.${encodeURIComponent(deviceFingerprint)}&limit=1`,
-      { headers }
-    )
-    if (checkRes.ok) {
-      const existing = await checkRes.json()
-      if (existing && existing.length > 0) {
-        return NextResponse.json(
-          { error: 'DUPLICATE_DEVICE', message: 'This device already has an account.' },
-          { status: 403 }
-        )
-      }
-    }
-  }
-
-  // Create profile
+  // Create profile (no device_fingerprint field — multi-account blocking removed)
   const profileRes = await fetch(`${supabaseUrl}/rest/v1/profiles`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
       id: userId,
       email,
-      full_name: fullName.slice(0, 256), // Limit length
+      full_name: fullName.slice(0, 256),
       tier: 'free',
-      device_fingerprint: deviceFingerprint ? deviceFingerprint.slice(0, 256) : null,
     }),
   })
 
@@ -125,7 +109,7 @@ async function handleClerkEvent(body: any) {
     }
   }
 
-  // Create usage_ledger
+  // Create usage_ledger with 50 free coins
   const ledgerRes = await fetch(`${supabaseUrl}/rest/v1/usage_ledger`, {
     method: 'POST',
     headers,

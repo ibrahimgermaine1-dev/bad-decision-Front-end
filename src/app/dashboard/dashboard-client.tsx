@@ -13,14 +13,13 @@
  * - Payment via Paystack inline popup
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useAuth, useUser, useClerk } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import { useAppStore, type EngineType, type Lead } from '@/stores/app-store'
 import { startSearch, pollUntilComplete, fetchCoinBalance, verifyPayment, fetchCollections } from '@/lib/api'
-import { TIERS, COIN_ADDONS, type TierId, getTierById, formatAddonPrice } from '@/lib/pricing'
-import { getCountryByCode } from '@/lib/locations'
+import { COIN_ADDONS, type TierId, formatAddonPrice, isEngineAvailable } from '@/lib/pricing'
 import { LocationSelector } from '@/components/location-selector'
 import { exportLeadsToCsv, downloadCsv } from '@/lib/csv-shield'
 
@@ -66,6 +65,7 @@ export function DashboardShell() {
   const {
     coinBalance, setCoinBalance,
     tier,
+    userCountry,
     collections, setCollections,
   } = useAppStore()
 
@@ -234,8 +234,6 @@ export function DashboardShell() {
     signOut(() => router.push('/'))
   }
 
-  const selectedCountryData = getCountryByCode(selectedCountry)
-
   // ===== LOADING STATE =====
   if (!isLoaded) {
     return (
@@ -400,6 +398,7 @@ export function DashboardShell() {
               progress={progress}
               onSearch={handleSearch}
               coinBalance={coinBalance.coins_balance}
+              tier={tier}
             />
           )}
           {activeView === 'collections' && (
@@ -412,6 +411,7 @@ export function DashboardShell() {
               onBuyCoins={handleBuyCoins}
               paymentProcessing={paymentProcessing}
               paymentError={paymentError}
+              userCountry={userCountry}
             />
           )}
           {activeView === 'support' && (
@@ -463,7 +463,7 @@ function SearchView({
   searchQuery, setSearchQuery,
   selectedCountry, setSelectedCountry,
   selectedState, setSelectedState,
-  searchStatus, searchError, leads, progress, onSearch, coinBalance
+  searchStatus, searchError, leads, progress, onSearch, coinBalance, tier
 }: {
   selectedEngine: EngineType | null
   setSelectedEngine: (e: EngineType | null) => void
@@ -479,9 +479,11 @@ function SearchView({
   progress: number
   onSearch: () => void
   coinBalance: number
+  tier: string
 }) {
   const activeEngine = ENGINE_CARDS.find(e => e.id === selectedEngine)
   const canSearch = selectedEngine && searchQuery.trim() && searchStatus !== 'processing'
+  const isLocked = (engineId: EngineType) => !isEngineAvailable(engineId, tier as TierId)
 
   return (
     <div className="space-y-6">
@@ -527,30 +529,63 @@ function SearchView({
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {ENGINE_CARDS.map(engine => (
-              <button
-                key={engine.id}
-                onClick={() => setSelectedEngine(engine.id)}
-                className="card-premium p-4 text-left hover:border-[#7C5CFC]/30 transition-all group"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#1A1535] border border-[#7C5CFC]/20 flex items-center justify-center flex-shrink-0 group-hover:bg-[#7C5CFC] group-hover:border-[#7C5CFC] transition-all">
-                    <svg className="w-5 h-5 text-[#7C5CFC] group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={engine.icon} />
-                    </svg>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="font-semibold text-[14px] text-[#F5F5F7]">{engine.title}</span>
-                      <span className="px-2 py-0.5 rounded-md bg-[#1A1535] text-[11px] font-bold text-[#7C5CFC] flex-shrink-0">
-                        {engine.coinCost} coins
-                      </span>
+            {ENGINE_CARDS.map(engine => {
+              const locked = isLocked(engine.id)
+              return (
+                <button
+                  key={engine.id}
+                  onClick={() => !locked && setSelectedEngine(engine.id)}
+                  className={`card-premium p-4 text-left transition-all group relative ${
+                    locked
+                      ? 'opacity-70 cursor-not-allowed border-[#25252F]'
+                      : 'hover:border-[#7C5CFC]/30'
+                  }`}
+                >
+                  {locked && (
+                    <span className="absolute top-3 right-3 px-2 py-0.5 rounded-md bg-[#2A2008] border border-[#FBBF24]/30 text-[10px] font-bold text-[#FBBF24] uppercase tracking-wide flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      Pro
+                    </span>
+                  )}
+                  <div className="flex items-start gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${
+                      locked
+                        ? 'bg-[#14141C] border border-[#25252F]'
+                        : 'bg-[#1A1535] border border-[#7C5CFC]/20 group-hover:bg-[#7C5CFC] group-hover:border-[#7C5CFC]'
+                    }`}>
+                      <svg className={`w-5 h-5 transition-colors ${locked ? 'text-[#6B6B7B]' : 'text-[#7C5CFC] group-hover:text-white'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={engine.icon} />
+                      </svg>
                     </div>
-                    <p className="text-[12px] text-[#A8A8B8]">{engine.desc}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className={`font-semibold text-[14px] ${locked ? 'text-[#A8A8B8]' : 'text-[#F5F5F7]'}`}>{engine.title}</span>
+                        {!locked && (
+                          <span className="px-2 py-0.5 rounded-md bg-[#1A1535] text-[11px] font-bold text-[#7C5CFC] flex-shrink-0">
+                            {engine.coinCost} coins
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[12px] text-[#A8A8B8]">{engine.desc}</p>
+                      {locked && (
+                        <a
+                          href="/pricing"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 mt-2 text-[12px] font-semibold text-[#FBBF24] hover:text-[#FCD34D] transition-colors"
+                        >
+                          Upgrade to unlock
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                          </svg>
+                        </a>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
@@ -811,13 +846,14 @@ function CollectionsView({ collections }: { collections: any[] }) {
 // COINS VIEW
 // ============================================================
 function CoinsView({
-  coinBalance, tier, onBuyCoins, paymentProcessing, paymentError
+  coinBalance, tier, onBuyCoins, paymentProcessing, paymentError, userCountry
 }: {
   coinBalance: { coins_balance: number; coins_reserved: number; coins_lifetime: number }
   tier: string
   onBuyCoins: (addon: any) => void
   paymentProcessing: boolean
   paymentError: string
+  userCountry: string
 }) {
   return (
     <div className="space-y-6">
@@ -842,9 +878,14 @@ function CoinsView({
             <div className="text-3xl font-bold text-[#A8A8B8]">{coinBalance.coins_lifetime}</div>
           </div>
         </div>
-        <div className="mt-4 pt-4 border-t border-[#25252F]">
-          <span className="text-[12px] text-[#6B6B7B]">Current plan: </span>
-          <span className="text-[12px] text-[#7C5CFC] font-semibold uppercase">{tier}</span>
+        <div className="mt-4 pt-4 border-t border-[#25252F] flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <span className="text-[12px] text-[#6B6B7B]">Current plan: </span>
+            <span className="text-[12px] text-[#7C5CFC] font-semibold uppercase">{tier}</span>
+          </div>
+          <span className="text-[12px] text-[#6B6B7B]">
+            Currency: <span className="text-[#F5F5F7] font-semibold">{userCountry === 'NG' ? 'Nigerian Naira' : 'US Dollar'}</span>
+          </span>
         </div>
       </div>
 
@@ -869,7 +910,7 @@ function CoinsView({
               <div className="text-2xl font-bold text-gradient-violet">{addon.coins.toLocaleString()}</div>
               <div className="text-[12px] text-[#6B6B7B] mb-3">coins</div>
               <div className="text-lg font-bold text-[#F5F5F7] mb-4">
-                ₦{addon.priceNGN.toLocaleString()}
+                {formatAddonPrice(addon, userCountry)}
               </div>
               <button
                 onClick={() => onBuyCoins(addon)}

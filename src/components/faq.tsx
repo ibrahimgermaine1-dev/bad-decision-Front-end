@@ -66,8 +66,8 @@ const FAQ_SECTIONS: FAQSection[] = [
     title: 'Account Security',
     items: [
       {
-        question: 'How do you stop people from making free accounts over and over?',
-        answer: 'When you sign up, we scan your device hardware. This creates a unique fingerprint. If someone tries to sign up again from the same device, we block it. One device. One free trial.',
+        question: 'Can I have more than one account?',
+        answer: 'Yes. You can sign up with a different email anytime. We do not block multiple accounts. Each new account gets its own 50 free coins to start. If you need more coins, you can buy them or upgrade your plan anytime.',
       },
       {
         question: 'Can someone steal my coins?',
