@@ -186,10 +186,8 @@ export function LocationSelector({ country, stateRegion, onCountryChange, onStat
         >
           <span className="text-[14px] text-[#F5F5F7] truncate">
             {stateRegion
-              ? states.find(s => s.code === stateRegion)?.name || stateRegion
-              : states.length > 0
-                ? 'Select state or region'
-                : 'No states available'
+              ? (states.find(s => s.code === stateRegion)?.name || stateRegion)
+              : (states.length > 0 ? 'Select state or region' : 'No states available')}
           </span>
           {states.length > 0 && (
             <svg className={`w-4 h-4 text-[#6B6B7B] flex-shrink-0 transition-transform ${showStateDropdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
