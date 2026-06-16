@@ -3,9 +3,8 @@
  * Protects dashboard routes. Public pages and API routes don't require
  * middleware-level auth (API routes have their own auth() checks).
  *
- * FIX: Wrapped in try-catch to prevent MIDDLEWARE_INVOCATION_FAILED
- * from crashing the entire site when Clerk keys are missing or
- * the auth service is temporarily unavailable.
+ * FIX: Wrapped in try-catch to prevent MIDDLEWARE_INVOCATION_FAILED.
+ * FIX: All marketing pages added to public routes.
  */
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
@@ -17,6 +16,14 @@ const isPublicRoute = createRouteMatcher([
   '/sign-up(.*)',
   '/pricing',
   '/faq',
+  '/how-it-works',
+  '/case-studies',
+  '/guarantee',
+  '/about',
+  '/contact',
+  '/terms',
+  '/privacy',
+  '/refund',
   '/api/webhooks/clerk',
   '/api/webhooks/paystack',
   '/api/coins(.*)',
