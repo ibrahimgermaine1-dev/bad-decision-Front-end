@@ -1,27 +1,30 @@
 /**
- * Clerk Auth Middleware — Bulletproof Version
+ * Bulletproof Middleware — No Clerk crashes possible.
  *
- * PROBLEM: Clerk's auth.protect() throws MIDDLEWARE_INVOCATION_FAILED when:
- *   - Clerk keys are not set in Vercel env vars
- *   - Clerk keys are invalid or wrong instance (test vs prod)
- *   - Clerk dashboard is unreachable from Vercel
+ * ROOT CAUSE of MIDDLEWARE_INVOCATION_FAILED:
+ * Clerk v6's `clerkMiddleware()` wrapper throws DURING MODULE LOAD
+ * (before our handler runs) when:
+ *   - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is missing
+ *   - The key is malformed (wrong format, wrong instance)
+ *   - The key is for a different Clerk instance than CLERK_SECRET_KEY
  *
- * SOLUTION: Do NOT call auth.protect() in middleware at all.
- * Instead, just check if a Clerk session exists. If not, redirect to /sign-in.
- * If Clerk itself is unreachable, treat as not-signed-in (soft redirect).
+ * This means our try/catch inside the handler never even runs.
  *
- * Auth enforcement for sensitive actions happens in API routes via auth().
- * This middleware only handles the UX of redirecting unauthenticated users
- * away from /dashboard.
+ * SOLUTION: Skip Clerk entirely in middleware. Use plain Next.js
+ * middleware that only checks for a Clerk session cookie. If Clerk
+ * is broken/missing, the site still loads. Auth enforcement for
+ * sensitive actions happens in API routes via auth().
+ *
+ * The dashboard page itself does a client-side redirect to /sign-in
+ * if useAuth() returns isSignedIn=false, so middleware-level auth
+ * is redundant for the UX.
  */
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
-const isPublicRoute = createRouteMatcher([
+const PUBLIC_ROUTES = [
   '/',
   '/sso-callback',
-  '/sign-in(.*)',
-  '/sign-up(.*)',
   '/pricing',
   '/faq',
   '/how-it-works',
@@ -32,46 +35,51 @@ const isPublicRoute = createRouteMatcher([
   '/terms',
   '/privacy',
   '/refund',
+]
+
+const PUBLIC_PREFIXES = [
+  '/sign-in',
+  '/sign-up',
   '/api/webhooks/clerk',
   '/api/webhooks/paystack',
-  '/api/coins(.*)',
-  '/api/backend/(.*)',
-  '/api/payments/(.*)',
-])
+  '/api/coins',
+  '/api/backend/',
+  '/api/payments/',
+]
 
-export default clerkMiddleware(async (auth, request) => {
-  // Public routes never need any auth check
-  if (isPublicRoute(request)) return
+function isPublic(pathname: string): boolean {
+  if (PUBLIC_ROUTES.includes(pathname)) return true
+  return PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix))
+}
 
-  // For protected routes (e.g. /dashboard), do a soft auth check.
-  // We DO NOT call auth.protect() because it throws when Clerk keys
-  // are missing/misconfigured, which crashes Vercel with
-  // MIDDLEWARE_INVOCATION_FAILED.
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Public routes always pass through
+  if (isPublic(pathname)) return NextResponse.next()
+
+  // For protected routes (e.g. /dashboard), check for Clerk session cookie.
+  // Clerk v6 stores the active session in cookies named like:
+  //   __clerk_db_jwt
+  //   __session
+  //   __clerk_status_expiry_cookie
+  // If none exist, redirect to /sign-in.
   //
-  // Instead: call auth() (returns the session, does NOT throw on
-  // missing keys — returns null session instead).
-  try {
-    const { userId } = await auth()
+  // This is a SOFT check only — real auth enforcement happens in API
+  // routes via auth(). This redirect is purely for UX so unauthenticated
+  // users don't see a broken dashboard.
+  const hasClerkCookie = request.cookies.get('__clerk_db_jwt') ||
+                         request.cookies.get('__session') ||
+                         request.cookies.get('__client_uat')
 
-    // If no user, redirect to sign-in. This is the only enforcement
-    // we do in middleware. Real auth enforcement for API actions
-    // happens inside each API route handler.
-    if (!userId) {
-      const signInUrl = new URL('/sign-in', request.url)
-      signInUrl.searchParams.set('redirect_url', request.url)
-      return NextResponse.redirect(signInUrl)
-    }
-
-    // User is signed in — let them through.
-    return
-  } catch (error) {
-    // If even auth() throws (Clerk totally broken), don't crash the request.
-    // Just let it through. The dashboard page itself will handle missing
-    // Clerk state gracefully via useUser() returning null.
-    console.error('[MIDDLEWARE] auth() threw — Clerk may be misconfigured:', error)
-    return
+  if (!hasClerkCookie) {
+    const signInUrl = new URL('/sign-in', request.url)
+    signInUrl.searchParams.set('redirect_url', request.url)
+    return NextResponse.redirect(signInUrl)
   }
-})
+
+  return NextResponse.next()
+}
 
 export const config = {
   // Run middleware on everything except static assets and Next internals.
