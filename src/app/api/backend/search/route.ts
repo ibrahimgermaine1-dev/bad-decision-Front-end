@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         user_id: userId,
         task_type: body.engine,      // frontend "engine" -> backend "task_type"
         query: body.query.trim(),
-        coins_reserved: body.coins_reserved || 2,
+        credits_reserved: body.credits_reserved || body.credits_reserved || 2,
         country: body.country || '',
         state_region: body.state_region || '',
       }),

@@ -1,7 +1,7 @@
 /**
- * Paystack Webhook — Add coins after successful payment
+ * Paystack Webhook — Add credits after successful payment
  * SECURED: Always validates signature. Rejects if secret is missing.
- * Rate limited. Idempotent (skips duplicate references).
+ * Rate limited. Idempotent via add_credits RPC (checks reference_id for duplicates).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
@@ -96,33 +96,43 @@ export async function POST(req: NextRequest) {
 
     const userId = profiles[0].id
     let purchasedTier: string | null = null
-    let coinsToAdd = 0
+    let creditsToAdd = 0
+    let transactionType = 'purchase'
+    let description = 'Credit purchase'
 
     if (currency === 'NGN') {
       const ngn = amount / 100
-      if (ngn >= 28000) { purchasedTier = 'pro'; coinsToAdd = 5000 }
-      else if (ngn >= 20000) { purchasedTier = 'growth'; coinsToAdd = 3000 }
-      else if (ngn >= 12000) { purchasedTier = 'starter'; coinsToAdd = 1500 }
-      else if (ngn >= 4000) coinsToAdd = 500
-      else coinsToAdd = Math.round(ngn / 8)
+      if (ngn >= 28000) { purchasedTier = 'pro'; creditsToAdd = 5000; description = 'Pro tier upgrade - 5000 credits' }
+      else if (ngn >= 20000) { purchasedTier = 'growth'; creditsToAdd = 3000; description = 'Growth tier upgrade - 3000 credits' }
+      else if (ngn >= 12000) { purchasedTier = 'starter'; creditsToAdd = 1500; description = 'Starter tier upgrade - 1500 credits' }
+      else if (ngn >= 5000) { creditsToAdd = 3000; description = '3000 credit top-up' }
+      else if (ngn >= 4000) { creditsToAdd = 500; description = '500 credit top-up' }
+      else creditsToAdd = Math.round(ngn / 8)
     } else {
       const usd = amount / 100
-      if (usd >= 35) { purchasedTier = 'pro'; coinsToAdd = 5000 }
-      else if (usd >= 25) { purchasedTier = 'growth'; coinsToAdd = 3000 }
-      else if (usd >= 15) { purchasedTier = 'starter'; coinsToAdd = 1500 }
-      else if (usd >= 5) coinsToAdd = 500
-      else coinsToAdd = Math.round(usd * 100)
+      if (usd >= 35) { purchasedTier = 'pro'; creditsToAdd = 5000; description = 'Pro tier upgrade - 5000 credits' }
+      else if (usd >= 25) { purchasedTier = 'growth'; creditsToAdd = 3000; description = 'Growth tier upgrade - 3000 credits' }
+      else if (usd >= 15) { purchasedTier = 'starter'; creditsToAdd = 1500; description = 'Starter tier upgrade - 1500 credits' }
+      else if (usd >= 25) { creditsToAdd = 3000; description = '3000 credit top-up' }
+      else if (usd >= 5) { creditsToAdd = 500; description = '500 credit top-up' }
+      else creditsToAdd = Math.round(usd * 100)
     }
 
-    // Add coins via RPC
-    const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/add_coins`, {
+    // Add credits via add_credits RPC (IDEMPOTENT — checks reference_id for duplicates)
+    const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/add_credits`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ p_user_id: userId, p_amount: coinsToAdd }),
+      body: JSON.stringify({
+        p_user_id: userId,
+        p_amount: creditsToAdd,
+        p_transaction_type: transactionType,
+        p_description: description,
+        p_reference_id: reference || `paystack_${Date.now()}`,
+      }),
     })
     if (!rpcRes.ok) {
       const err = await rpcRes.json().catch(() => ({}))
-      return NextResponse.json({ error: err.message || 'Coin add failed' }, { status: 500 })
+      return NextResponse.json({ error: err.message || 'Credit add failed' }, { status: 500 })
     }
 
     // Upgrade tier
@@ -134,13 +144,14 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Mark reference as processed
+    // Mark reference as processed (in-memory cache for fast dedup;
+    // the real idempotency is in the add_credits RPC via reference_id)
     if (reference) {
       processedReferences.add(reference)
     }
 
-    console.log(`[PAYSTACK_WEBHOOK] Payment verified: ${userEmail} -> ${coinsToAdd} coins${purchasedTier ? ` (${purchasedTier})` : ''} ref=${reference}`)
-    return NextResponse.json({ ok: true, coins_added: coinsToAdd, tier: purchasedTier })
+    console.log(`[PAYSTACK_WEBHOOK] Payment verified: ${userEmail} -> ${creditsToAdd} credits${purchasedTier ? ` (${purchasedTier})` : ''} ref=${reference}`)
+    return NextResponse.json({ ok: true, credits_added: creditsToAdd, tier: purchasedTier })
   } catch (error: any) {
     console.error('[PAYSTACK_WEBHOOK] Error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })

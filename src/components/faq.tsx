@@ -2,7 +2,7 @@
 
 /**
  * FAQ PAGE — Objection Killer
- * Accordion layout. Three sections: Data Quality, Coin Economy, Account Security.
+ * Accordion layout. Three sections: Data Quality, Credit Economy, Account Security.
  * No emojis. Direct-response copy.
  */
 import { useState } from 'react'
@@ -42,23 +42,23 @@ const FAQ_SECTIONS: FAQSection[] = [
     ],
   },
   {
-    title: 'The Coin Economy',
+    title: 'The Credit Economy',
     items: [
       {
-        question: 'What are coins?',
-        answer: 'Coins are how you pay for contacts. Each verified contact costs coins. The more verification we do, the more coins it costs. But you only pay when we find something real.',
+        question: 'What are credits?',
+        answer: 'Credits are how you pay for contacts. Each verified contact costs credits. The more verification we do, the more credits it costs. But you only pay when we find something real.',
       },
       {
         question: 'Do I pay for searches that find nothing?',
-        answer: 'No. If our system finds zero contacts, you pay zero coins. You only pay when we deliver verified results.',
+        answer: 'No. If our system finds zero contacts, you pay zero credits. You only pay when we deliver verified results.',
       },
       {
         question: 'Do I pay for the same contact twice?',
-        answer: 'No. We remember every contact we ever found. If someone else already searched for the same business, you get that data for free. Zero coins.',
+        answer: 'No. We remember every contact we ever found. If someone else already searched for the same business, you get that data for free. Zero credits.',
       },
       {
-        question: 'How many coins does one contact cost?',
-        answer: 'A basic contact costs 1 coin. A contact with a decision maker costs 2 coins. A contact with a guaranteed tested inbox costs 3 coins. You choose the level of verification.',
+        question: 'How many credits does one contact cost?',
+        answer: 'A basic contact costs 1 credit. A contact with a decision maker costs 2 credits. A contact with a guaranteed tested inbox costs 3 credits. You choose the level of verification.',
       },
     ],
   },
@@ -67,11 +67,11 @@ const FAQ_SECTIONS: FAQSection[] = [
     items: [
       {
         question: 'Can I have more than one account?',
-        answer: 'Yes. You can sign up with a different email anytime. We do not block multiple accounts. Each new account gets its own 50 free coins to start. If you need more coins, you can buy them or upgrade your plan anytime.',
+        answer: 'Yes. You can sign up with a different email anytime. We do not block multiple accounts. Each new account gets its own 50 free credits to start. If you need more credits, you can buy them or upgrade your plan anytime.',
       },
       {
-        question: 'Can someone steal my coins?',
-        answer: 'Your coins are stored on our secure servers. Not on your computer. Nobody can change your balance except our system after a verified payment.',
+        question: 'Can someone steal my credits?',
+        answer: 'Your credits are stored on our secure servers. Not on your computer. Nobody can change your balance except our system after a verified payment.',
       },
       {
         question: 'Is my payment information safe?',
@@ -90,19 +90,19 @@ export function FAQPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Nav */}
-      <nav className="sticky top-0 z-50 bg-white border-b border-[#E2E8F0]">
+      <nav className="sticky top-0 z-50 bg-background border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <button onClick={() => setView('landing')} className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#2563EB] rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">BD</span>
             </div>
-            <span className="font-semibold text-[#0F172A]">Bad Decision AI</span>
+            <span className="font-semibold text-foreground">Bad Decision</span>
           </button>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={() => setView('signin')} className="border-[#E2E8F0]">Sign In</Button>
-            <Button size="sm" onClick={() => setView('signup')} className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white">Get Started</Button>
+            <Button variant="outline" size="sm" onClick={() => setView('signin')} className="border-border">Sign In</Button>
+            <Button size="sm" onClick={() => setView('signup')} className="bg-accent hover:bg-accent/90 text-white">Get Started</Button>
           </div>
         </div>
       </nav>
@@ -110,10 +110,10 @@ export function FAQPage() {
       {/* Header */}
       <section className="pt-16 sm:pt-20 pb-12">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-[#0F172A] tracking-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground tracking-tight">
             Frequently Asked Questions.
           </h1>
-          <p className="mt-4 text-lg text-[#64748B]">Clear answers about our system.</p>
+          <p className="mt-4 text-lg text-muted-foreground">Clear answers about our system.</p>
         </div>
       </section>
 
@@ -122,20 +122,20 @@ export function FAQPage() {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 space-y-12">
           {FAQ_SECTIONS.map((section) => (
             <div key={section.title}>
-              <h2 className="text-xl font-bold text-[#0F172A] mb-6">{section.title}</h2>
+              <h2 className="text-xl font-bold text-foreground mb-6">{section.title}</h2>
               <div className="space-y-0">
                 {section.items.map((item, idx) => {
                   const key = `${section.title}-${idx}`
                   const isOpen = openIndex === key
                   return (
-                    <div key={key} className="border-b border-[#E2E8F0]">
+                    <div key={key} className="border-b border-border">
                       <button
                         onClick={() => toggleItem(key)}
                         className="w-full py-5 flex items-center justify-between text-left"
                       >
-                        <span className="font-medium text-[#0F172A] pr-4">{item.question}</span>
+                        <span className="font-medium text-foreground pr-4">{item.question}</span>
                         <svg
-                          className={`w-5 h-5 text-[#64748B] flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                          className={`w-5 h-5 text-muted-foreground flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
                           fill="none" viewBox="0 0 24 24" stroke="currentColor"
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -143,7 +143,7 @@ export function FAQPage() {
                       </button>
                       {isOpen && (
                         <div className="pb-5">
-                          <p className="text-[#475569] leading-relaxed">{item.answer}</p>
+                          <p className="text-muted-foreground leading-relaxed">{item.answer}</p>
                         </div>
                       )}
                     </div>

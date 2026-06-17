@@ -1,5 +1,5 @@
 /**
- * Bad Decision AI — Location Data
+ * Bad Decision — Location Data
  * 195 countries organized by continent with flags and state/region data.
  * Country flags use emoji from country code conversion.
  */

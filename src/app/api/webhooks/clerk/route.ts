@@ -1,10 +1,12 @@
 /**
- * Clerk Webhook — Auto-create profile + usage_ledger on sign-up
+ * Clerk Webhook — Auto-create profile + credit_balances on sign-up
  * SECURED: Always verifies Svix signature. Rejects if secret is missing.
  * Rate limited to prevent abuse.
  *
  * NOTE: Device fingerprint multi-account blocking has been REMOVED.
  * Multiple accounts per device are now allowed.
+ * Uses the handle_new_user RPC which creates profile + credit_balances +
+ * credit_transactions in one atomic call (with 50 free credits).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { Webhook } from 'svix'
@@ -89,46 +91,28 @@ async function handleClerkEvent(body: any) {
     'Prefer': 'return=minimal',
   }
 
-  // Create profile (no device_fingerprint field — multi-account blocking removed)
-  const profileRes = await fetch(`${supabaseUrl}/rest/v1/profiles`, {
+  // Extract country from Clerk user data if available
+  const country = (data.public_metadata?.country as string) || 'US'
+
+  // Call handle_new_user RPC — creates profile + credit_balances + credit_transactions atomically
+  // This is idempotent (ON CONFLICT DO NOTHING), so duplicate webhooks are safe.
+  const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/handle_new_user`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
-      id: userId,
-      email,
-      full_name: fullName.slice(0, 256),
-      tier: 'free',
+      p_clerk_id: userId,
+      p_email: email,
+      p_full_name: fullName.slice(0, 256),
+      p_country: country.slice(0, 10),
     }),
   })
 
-  if (!profileRes.ok) {
-    const errData = await profileRes.json().catch(() => ({}))
-    if (!errData.message?.includes('duplicate') && !errData.code?.includes('23505')) {
-      console.error('[CLERK_WEBHOOK] Profile creation error:', errData)
-      return NextResponse.json({ error: errData.message || 'Profile creation failed' }, { status: 500 })
-    }
+  if (!rpcRes.ok) {
+    const errData = await rpcRes.json().catch(() => ({}))
+    console.error('[CLERK_WEBHOOK] handle_new_user RPC error:', errData)
+    return NextResponse.json({ error: errData.message || 'User creation failed' }, { status: 500 })
   }
 
-  // Create usage_ledger with 50 free coins
-  const ledgerRes = await fetch(`${supabaseUrl}/rest/v1/usage_ledger`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      user_id: userId,
-      coins_balance: 50,
-      coins_reserved: 0,
-      coins_lifetime: 50,
-    }),
-  })
-
-  if (!ledgerRes.ok) {
-    const errData = await ledgerRes.json().catch(() => ({}))
-    if (!errData.message?.includes('duplicate') && !errData.code?.includes('23505')) {
-      console.error('[CLERK_WEBHOOK] Ledger creation error:', errData)
-      return NextResponse.json({ error: errData.message || 'Ledger creation failed' }, { status: 500 })
-    }
-  }
-
-  console.log(`[CLERK_WEBHOOK] User created: ${userId} (${email})`)
+  console.log(`[CLERK_WEBHOOK] User created: ${userId} (${email}) with 50 free credits`)
   return NextResponse.json({ ok: true, user_id: userId })
 }

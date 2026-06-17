@@ -63,8 +63,13 @@ export async function GET(req: NextRequest) {
           status: data.status,
           engine: data.engine || data.task_type || '',
           query: data.query || '',
+          progress: data.progress || 0,
+          current_step: data.current_step || '',
           leads: data.leads || [],
           lead_count: data.lead_count || (data.leads || []).length,
+          credits_reserved: data.credits_reserved || 0,
+          credits_spent: data.credits_spent || 0,
+          error_message: data.error_message || '',
         })
       }
 
@@ -90,9 +95,9 @@ export async function GET(req: NextRequest) {
 
         let leads: any[] = []
 
-        // If task is completed, fetch leads from the backend
-        if (task.status === 'completed' && task.collection_id) {
-          const leadsRes = await fetch(`${backendUrl}/api/leads/${encodeURIComponent(task.collection_id)}`, {
+        // If task is completed, fetch leads from the backend (by task_id)
+        if (task.status === 'completed') {
+          const leadsRes = await fetch(`${backendUrl}/api/leads/${encodeURIComponent(task.id)}`, {
             method: 'GET',
             headers,
           })
@@ -107,8 +112,13 @@ export async function GET(req: NextRequest) {
           status: task.status,
           engine: task.task_type || task.engine || '',
           query: task.query || '',
+          progress: task.progress || 0,
+          current_step: task.current_step || '',
           leads,
           lead_count: leads.length,
+          credits_reserved: task.credits_reserved || 0,
+          credits_spent: task.credits_spent || 0,
+          error_message: task.error_message || '',
         })
       }
     }
@@ -138,9 +148,9 @@ async function supabaseFallback(taskId: string, userId: string): Promise<NextRes
     'Authorization': `Bearer ${serviceKey}`,
   }
 
-  // Query the "tasks" table (backend uses "tasks", not "search_tasks")
+  // Query the "tasks" table (includes progress fields)
   const taskRes = await fetch(
-    `${supabaseUrl}/rest/v1/tasks?select=id,task_type,query,status,created_at&user_id=eq.${encodeURIComponent(userId)}&id=eq.${encodeURIComponent(taskId)}&limit=1`,
+    `${supabaseUrl}/rest/v1/tasks?select=id,task_type,query,status,progress,current_step,credits_reserved,credits_spent,error_message,created_at&user_id=eq.${encodeURIComponent(userId)}&id=eq.${encodeURIComponent(taskId)}&limit=1`,
     { headers: sbHeaders }
   )
 
@@ -169,7 +179,12 @@ async function supabaseFallback(taskId: string, userId: string): Promise<NextRes
     status: task.status,
     engine: task.task_type || task.engine || '',
     query: task.query,
+    progress: task.progress || 0,
+    current_step: task.current_step || '',
     leads,
     lead_count: leads.length,
+    credits_reserved: task.credits_reserved || 0,
+    credits_spent: task.credits_spent || 0,
+    error_message: task.error_message || '',
   })
 }

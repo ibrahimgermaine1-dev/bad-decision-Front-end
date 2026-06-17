@@ -1,11 +1,9 @@
 /**
- * Bad Decision AI — Frontend API Client
+ * Bad Decision — Frontend API Client
  * All calls go through Next.js API proxy routes (same origin, no CORS issues).
  * BACKEND_URL and BACKEND_API_SECRET stay server-side only.
- * BUG 4 FIX: Collections now fetched through proxy, no client-side anon key.
- * BUG 1 FIX: Paystack payments verified server-side before updating UI.
  */
-import type { CoinBalance, Lead, SmartCollection, EngineType } from '@/stores/app-store'
+import type { CreditBalance, Lead, SmartCollection, EngineType } from '@/stores/app-store'
 
 // ============================================================
 // TYPES
@@ -23,16 +21,20 @@ export interface TaskStatusResponse {
   engine?: string
   query?: string
   progress?: number
+  current_step?: string
   leads?: Lead[]
   lead_count?: number
+  credits_reserved?: number
+  credits_spent?: number
+  error_message?: string
   error?: string
   detail?: string
 }
 
-export interface CoinBalanceResponse {
-  coins_balance: number
-  coins_reserved: number
-  coins_lifetime: number
+export interface CreditBalanceResponse {
+  credits_balance: number
+  credits_reserved: number
+  total_purchased: number
 }
 
 // ============================================================
@@ -61,7 +63,7 @@ export async function startSearch(engine: EngineType, query: string, country?: s
 
 /**
  * Poll task status from the backend.
- * Returns current status + leads if completed.
+ * Returns current status + progress + leads if completed.
  */
 export async function pollTaskStatus(taskId: string): Promise<TaskStatusResponse> {
   const res = await fetch(`/api/backend/tasks/status?taskId=${encodeURIComponent(taskId)}`, {
@@ -78,30 +80,30 @@ export async function pollTaskStatus(taskId: string): Promise<TaskStatusResponse
 }
 
 /**
- * Get user's coin balance from the backend.
+ * Get user's credit balance from the backend.
  */
-export async function fetchCoinBalance(): Promise<CoinBalanceResponse> {
-  const res = await fetch('/api/backend/coins', {
+export async function fetchCreditBalance(): Promise<CreditBalanceResponse> {
+  const res = await fetch('/api/backend/credits', {
     method: 'GET',
   })
 
   if (!res.ok) {
-    const data = await res.json().catch(() => ({ error: 'Failed to fetch coins' }))
-    throw new Error(data.detail || data.error || `Coin balance fetch failed (${res.status})`)
+    const data = await res.json().catch(() => ({ error: 'Failed to fetch credits' }))
+    throw new Error(data.detail || data.error || `Credit balance fetch failed (${res.status})`)
   }
 
   const data = await res.json()
-  // Backend may return { balance: { coins_balance, ... } } or flat object
+  // Backend returns { balance: { credits_balance, ... } }
   return data.balance || data
 }
 
 /**
  * Verify a Paystack payment server-side.
- * BUG 1 FIX: After Paystack popup callback, verify with our server
+ * After Paystack popup callback, verify with our server
  * before trusting the payment and updating the UI balance.
  * Returns the verified balance if successful.
  */
-export async function verifyPayment(reference: string): Promise<{ verified: boolean; balance?: CoinBalanceResponse; status?: string }> {
+export async function verifyPayment(reference: string): Promise<{ verified: boolean; balance?: CreditBalanceResponse; status?: string }> {
   try {
     const res = await fetch('/api/payments/verify', {
       method: 'POST',
@@ -128,9 +130,6 @@ export async function verifyPayment(reference: string): Promise<{ verified: bool
 
 /**
  * Fetch user's search collections.
- * BUG 4 FIX: Now routes through the Next.js proxy instead of
- * using the anon key client-side. The proxy adds auth and
- * queries Supabase with the service role key.
  */
 export async function fetchCollections(userId: string): Promise<SmartCollection[]> {
   try {
@@ -147,9 +146,9 @@ export async function fetchCollections(userId: string): Promise<SmartCollection[
 
     return (data || []).map((task: any) => ({
       id: task.id,
-      name: task.query || 'Untitled Search',
+      name: task.query || task.name || 'Untitled Search',
       task_type: (task.task_type || task.engine || 'ads_intent') as EngineType,
-      lead_count: 0,
+      lead_count: task.lead_count || 0,
       created_at: task.created_at?.split('T')[0] || '',
     }))
   } catch (err) {
@@ -160,13 +159,14 @@ export async function fetchCollections(userId: string): Promise<SmartCollection[
 
 /**
  * Poll a search task until it completes or fails.
- * Polls every 3 seconds, up to maxAttempts.
+ * Polls every 2.5 seconds (for interactive UI feel), up to maxAttempts.
+ * Calls onProgress callback with each status update for the progress bar.
  */
 export async function pollUntilComplete(
   taskId: string,
   onProgress?: (status: TaskStatusResponse) => void,
-  maxAttempts = 60,
-  intervalMs = 3000,
+  maxAttempts = 80,
+  intervalMs = 2500,
 ): Promise<TaskStatusResponse> {
   for (let i = 0; i < maxAttempts; i++) {
     const status = await pollTaskStatus(taskId)

@@ -9,7 +9,7 @@
  * 3. We verify with Paystack's /verify endpoint
  * 4. If verified, return the confirmed balance
  * 
- * Note: The webhook is still the source of truth for coin additions.
+ * Note: The webhook is still the source of truth for credit additions.
  * This endpoint just confirms whether payment was actually received.
  */
 import { NextRequest, NextResponse } from 'next/server'
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     const currency = verifyData.data.currency || 'NGN'
 
     // Wait a moment for webhook to process, then fetch balance
-    // The webhook handles coin addition — this endpoint just confirms
+    // The webhook handles credit addition — this endpoint just confirms
     await new Promise(resolve => setTimeout(resolve, 1500))
 
     // Fetch updated balance from Supabase
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     }
 
     const balanceRes = await fetch(
-      `${supabaseUrl}/rest/v1/usage_ledger?select=coins_balance,coins_reserved,coins_lifetime&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+      `${supabaseUrl}/rest/v1/credit_balances?select=credits_balance,credits_reserved,total_purchased&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
       {
         headers: {
           'apikey': serviceKey,
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     }
 
     const rows = await balanceRes.json()
-    const balance = rows?.[0] || { coins_balance: 0, coins_reserved: 0, coins_lifetime: 0 }
+    const balance = rows?.[0] || { credits_balance: 0, credits_reserved: 0, total_purchased: 0 }
 
     return NextResponse.json({
       verified: true,
@@ -126,9 +126,9 @@ export async function POST(req: NextRequest) {
       amount,
       currency,
       balance: {
-        coins_balance: balance.coins_balance ?? 0,
-        coins_reserved: balance.coins_reserved ?? 0,
-        coins_lifetime: balance.coins_lifetime ?? 0,
+        credits_balance: balance.credits_balance ?? 0,
+        credits_reserved: balance.credits_reserved ?? 0,
+        total_purchased: balance.total_purchased ?? 0,
       },
     })
   } catch (error: any) {

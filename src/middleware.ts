@@ -42,7 +42,7 @@ const PUBLIC_PREFIXES = [
   '/sign-up',
   '/api/webhooks/clerk',
   '/api/webhooks/paystack',
-  '/api/coins',
+  '/api/credits',
   '/api/backend/',
   '/api/payments/',
 ]

@@ -1,5 +1,5 @@
 /**
- * Bad Decision AI — Rate Limiter
+ * Bad Decision — Rate Limiter
  * In-memory sliding window rate limiter for API routes.
  * Tracks requests per IP + user combination.
  * 

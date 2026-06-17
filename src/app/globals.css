@@ -2,72 +2,79 @@
 @import "tw-animate-css";
 
 /* ============================================================
-   BAD DECISION AI — Premium Dark Design System
-   Sophisticated, high-end aesthetic inspired by Perplexity.
-   Deep ink backgrounds, violet accents, generous whitespace.
+   BAD DECISION — Perplexity Teal Design System
+   Soft teal gradient backgrounds, vibrant teal accents,
+   dark teal cards, generous whitespace.
    ============================================================ */
 
 @theme {
-  /* Core Backgrounds — deep ink with subtle warmth */
-  --color-ink: #08080C;
-  --color-ink-soft: #0E0E14;
-  --color-surface: #14141C;
-  --color-surface-raised: #1A1A24;
-  --color-surface-hover: #22222E;
+  /* Core Backgrounds — Perplexity teal gradient */
+  --color-teal-light: #a8d5d0;
+  --color-teal-mid: #8ecdc8;
+  --color-teal-vibrant: #00a8cc;
+  --color-teal-dark: #003d4d;
+  --color-teal-border: #004d5c;
+
+  /* Page background gradient */
+  --color-ink: #8ecdc8;
+  --color-ink-soft: #a8d5d0;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f8fbfb;
+  --color-surface-hover: #f0f7f7;
 
   /* Borders */
-  --color-border: #25252F;
-  --color-border-light: #2F2F3A;
-  --color-border-bright: #3D3D4A;
+  --color-border: #004d5c;
+  --color-border-light: #b0d8d4;
+  --color-border-bright: #00a8cc;
 
   /* Text */
-  --color-text: #F5F5F7;
-  --color-text-secondary: #A8A8B8;
-  --color-text-muted: #6B6B7B;
-  --color-text-dim: #4A4A55;
+  --color-text: #1a1a1a;
+  --color-text-secondary: #333333;
+  --color-text-muted: #555555;
+  --color-text-dim: #666666;
 
-  /* Brand Accent — electric violet for premium feel */
-  --color-violet: #7C5CFC;
-  --color-violet-hover: #6B4CE6;
-  --color-violet-soft: #1A1535;
-  --color-violet-glow: rgba(124, 92, 252, 0.15);
+  /* Brand Accent — vibrant teal */
+  --color-violet: #00a8cc;
+  --color-violet-hover: #0094b8;
+  --color-violet-soft: #e0f7fa;
+  --color-violet-glow: rgba(0, 168, 204, 0.15);
 
-  /* Secondary accent — soft blue for variety */
-  --color-azure: #3B82F6;
-  --color-azure-soft: #0F1B2E;
+  /* Secondary accent — bright blue for links */
+  --color-azure: #007bff;
+  --color-azure-soft: #e7f0ff;
 
   /* Semantic */
-  --color-success: #34D399;
-  --color-success-soft: #0D2818;
-  --color-warning: #FBBF24;
-  --color-warning-soft: #2A2008;
-  --color-danger: #F87171;
-  --color-danger-soft: #2A1010;
+  --color-success: #1a8a5a;
+  --color-success-soft: #e8f5ed;
+  --color-warning: #d4a017;
+  --color-warning-soft: #fef9e7;
+  --color-danger: #c0392b;
+  --color-danger-soft: #fbeae8;
 
-  /* shadcn/ui Semantic Tokens — mapped to dark theme */
-  --color-background: #08080C;
-  --color-foreground: #F5F5F7;
-  --color-primary: #7C5CFC;
-  --color-primary-foreground: #FFFFFF;
-  --color-secondary: #1A1A24;
-  --color-secondary-foreground: #F5F5F7;
-  --color-muted: #14141C;
-  --color-muted-foreground: #A8A8B8;
-  --color-accent: #1A1535;
-  --color-accent-foreground: #F5F5F7;
-  --color-destructive: #F87171;
-  --color-destructive-foreground: #FFFFFF;
-  --color-card: #14141C;
-  --color-card-foreground: #F5F5F7;
-  --color-popover: #1A1A24;
-  --color-popover-foreground: #F5F5F7;
-  --color-input: #25252F;
-  --color-ring: #7C5CFC;
-  --color-chart-1: #7C5CFC;
-  --color-chart-2: #34D399;
-  --color-chart-3: #FBBF24;
-  --color-chart-4: #F87171;
-  --color-chart-5: #3B82F6;
+  /* shadcn/ui Semantic Tokens — mapped to teal theme */
+  --color-background: #8ecdc8;
+  --color-foreground: #1a1a1a;
+  --color-primary: #00a8cc;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #003d4d;
+  --color-secondary-foreground: #f5f5f5;
+  --color-muted: #f0f7f7;
+  --color-muted-foreground: #555555;
+  --color-accent: #00a8cc;
+  --color-accent-foreground: #ffffff;
+  --color-destructive: #c0392b;
+  --color-destructive-foreground: #ffffff;
+  --color-card: #003d4d;
+  --color-card-foreground: #f5f5f5;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #1a1a1a;
+  --color-input: #ffffff;
+  --color-ring: #00a8cc;
+  --color-chart-1: #00a8cc;
+  --color-chart-2: #1a8a5a;
+  --color-chart-3: #d4a017;
+  --color-chart-4: #c0392b;
+  --color-chart-5: #007bff;
 
   /* Border radius */
   --radius-lg: 0.75rem;
@@ -75,7 +82,7 @@
   --radius-sm: calc(var(--radius-lg) - 4px);
 
   /* Typography */
-  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Inter', 'Roboto', system-ui, -apple-system, sans-serif;
 }
 
 @layer base {
@@ -85,16 +92,17 @@
 
   body {
     color: var(--color-text);
-    background: var(--color-ink);
+    background: linear-gradient(180deg, #a8d5d0 0%, #8ecdc8 100%);
+    background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Premium tight typography */
+  /* Clean modern typography */
   h1, h2, h3, h4, h5, h6 {
-    letter-spacing: -0.03em;
-    line-height: 1.1;
-    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    font-weight: 600;
   }
 
   p {
@@ -107,16 +115,16 @@
     color: var(--color-text);
   }
 
-  /* Premium gradient text */
+  /* Gradient text */
   .text-gradient {
-    background: linear-gradient(135deg, #F5F5F7 0%, #A8A8B8 100%);
+    background: linear-gradient(135deg, #003d4d 0%, #00a8cc 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 
   .text-gradient-violet {
-    background: linear-gradient(135deg, #7C5CFC 0%, #3B82F6 100%);
+    background: linear-gradient(135deg, #00a8cc 0%, #007bff 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -128,41 +136,50 @@
   }
 
   .glow-violet-sm {
-    box-shadow: 0 0 20px rgba(124, 92, 252, 0.1);
+    box-shadow: 0 0 20px rgba(0, 168, 204, 0.1);
   }
 
-  /* Glassmorphism card */
+  /* Glassmorphism card — light teal tint */
   .glass {
-    background: rgba(20, 20, 28, 0.6);
+    background: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-border-light);
   }
 
-  /* Premium card */
+  /* Premium card — white with teal border */
   .card-premium {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: #ffffff;
+    border: 1px solid var(--color-border-light);
     border-radius: 1rem;
     transition: all 0.2s ease;
+    box-shadow: 0 4px 24px rgba(0, 61, 77, 0.08);
   }
 
   .card-premium:hover {
     border-color: var(--color-border-bright);
-    background: var(--color-surface-raised);
+    box-shadow: 0 8px 32px rgba(0, 168, 204, 0.12);
+  }
+
+  /* Dark teal card — for contrast sections */
+  .card-dark {
+    background: #003d4d;
+    border: 1px solid #004d5c;
+    border-radius: 1rem;
+    color: #f5f5f5;
   }
 
   /* Subtle grid background */
   .bg-grid {
     background-image:
-      linear-gradient(rgba(124, 92, 252, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(124, 92, 252, 0.03) 1px, transparent 1px);
+      linear-gradient(rgba(0, 168, 204, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 168, 204, 0.04) 1px, transparent 1px);
     background-size: 50px 50px;
   }
 
   /* Radial glow background */
   .bg-radial-glow {
-    background: radial-gradient(ellipse at top, rgba(124, 92, 252, 0.08) 0%, transparent 60%);
+    background: radial-gradient(ellipse at top, rgba(0, 168, 204, 0.08) 0%, transparent 60%);
   }
 
   /* Animations */
@@ -199,9 +216,19 @@
   }
 
   .shimmer {
-    background: linear-gradient(90deg, var(--color-surface) 0%, var(--color-surface-raised) 50%, var(--color-surface) 100%);
+    background: linear-gradient(90deg, #f0f7f7 0%, #e0f7fa 50%, #f0f7f7 100%);
     background-size: 200% 100%;
     animation: shimmer 2s infinite;
+  }
+
+  /* Progress bar animation */
+  @keyframes progress-indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+  }
+
+  .progress-indeterminate {
+    animation: progress-indeterminate 1.5s ease-in-out infinite;
   }
 
   /* Smooth drawer transition */
@@ -225,11 +252,11 @@
 }
 
 /* ============================================================
-   Clerk Auth Pages — Dark Theme Override
+   Clerk Auth Pages — Teal Theme Override
    ============================================================ */
 .cl-socialButtonsBlockButton {
-  border: 1px solid var(--color-border) !important;
-  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border-light) !important;
+  background: #ffffff !important;
   border-radius: 0.75rem !important;
 }
 .cl-socialButtonsBlockButton .cl-socialButtonsProviderText {
@@ -237,14 +264,14 @@
   font-weight: 500 !important;
 }
 .cl-socialButtonsIconButton {
-  border: 1px solid var(--color-border) !important;
-  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border-light) !important;
+  background: #ffffff !important;
 }
 
 .cl-cardBox {
-  background: var(--color-surface) !important;
-  border: 1px solid var(--color-border) !important;
-  box-shadow: 0 0 60px rgba(124, 92, 252, 0.08) !important;
+  background: #ffffff !important;
+  border: 1px solid var(--color-border-light) !important;
+  box-shadow: 0 8px 40px rgba(0, 61, 77, 0.12) !important;
 }
 
 .cl-headerTitle,
@@ -261,7 +288,7 @@
 }
 
 .cl-formFieldInput {
-  background: var(--color-ink-soft) !important;
+  background: #ffffff !important;
   border: 1px solid var(--color-border) !important;
   color: var(--color-text) !important;
   border-radius: 0.625rem !important;
@@ -269,13 +296,14 @@
 
 .cl-formFieldInput:focus {
   border-color: var(--color-violet) !important;
+  box-shadow: 0 0 0 3px var(--color-violet-glow) !important;
 }
 
 .cl-alternativeMethods a,
 .cl-footerActionLink a,
 .cl-formHeaderTitle,
 .cl-formHeaderSubtitle {
-  color: var(--color-text-secondary) !important;
+  color: var(--color-azure) !important;
 }
 
 .cl-formButtonPrimary {
@@ -289,22 +317,22 @@
 }
 
 .cl-identityPreview {
-  background: var(--color-ink-soft) !important;
-  border-color: var(--color-border) !important;
+  background: var(--color-surface-hover) !important;
+  border-color: var(--color-border-light) !important;
 }
 
-/* Scrollbar styling — premium dark */
+/* Scrollbar styling — teal */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--color-ink);
+  background: rgba(255, 255, 255, 0.3);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: rgba(0, 61, 77, 0.3);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-bright);
+  background: rgba(0, 168, 204, 0.5);
 }

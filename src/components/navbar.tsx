@@ -47,7 +47,7 @@ export function Navbar() {
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? 'bg-[#08080C]/80 backdrop-blur-xl border-b border-[#25252F]'
+          ? 'bg-background/80 backdrop-blur-xl border-b border-border'
           : 'bg-transparent border-b border-transparent'
       }`}
     >
@@ -55,12 +55,12 @@ export function Navbar() {
         <div className="flex items-center justify-between h-16 sm:h-18">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#7C5CFC] to-[#3B82F6] flex items-center justify-center shadow-lg shadow-[#7C5CFC]/20 transition-transform group-hover:scale-105">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20 transition-transform group-hover:scale-105">
               <span className="text-white font-bold text-sm">BD</span>
             </div>
             <div className="hidden sm:block">
-              <span className="font-bold text-[15px] text-[#F5F5F7] tracking-tight">Bad Decision</span>
-              <span className="block text-[10px] text-[#6B6B7B] -mt-0.5 tracking-wide uppercase">Lead Intelligence</span>
+              <span className="font-bold text-[15px] text-foreground tracking-tight">Bad Decision</span>
+              <span className="block text-[10px] text-muted-foreground -mt-0.5 tracking-wide uppercase">Lead Intelligence</span>
             </div>
           </Link>
 
@@ -72,8 +72,8 @@ export function Navbar() {
                 href={link.href}
                 className={`px-4 py-2 rounded-lg text-[14px] font-medium transition-colors ${
                   pathname === link.href
-                    ? 'text-[#F5F5F7] bg-[#1A1A24]'
-                    : 'text-[#A8A8B8] hover:text-[#F5F5F7] hover:bg-[#14141C]'
+                    ? 'text-foreground bg-muted'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 }`}
               >
                 {link.label}
@@ -86,7 +86,7 @@ export function Navbar() {
             {isSignedIn ? (
               <Link
                 href="/dashboard"
-                className="px-5 py-2.5 rounded-lg bg-[#7C5CFC] hover:bg-[#6B4CE6] text-white text-[14px] font-semibold transition-colors shadow-lg shadow-[#7C5CFC]/20"
+                className="px-5 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[14px] font-semibold transition-colors shadow-lg shadow-primary/20"
               >
                 Open Dashboard
               </Link>
@@ -94,13 +94,13 @@ export function Navbar() {
               <>
                 <Link
                   href="/sign-in"
-                  className="px-4 py-2.5 rounded-lg text-[#A8A8B8] hover:text-[#F5F5F7] text-[14px] font-medium transition-colors"
+                  className="px-4 py-2.5 rounded-lg text-muted-foreground hover:text-foreground text-[14px] font-medium transition-colors"
                 >
                   Sign In
                 </Link>
                 <Link
                   href="/sign-up"
-                  className="px-5 py-2.5 rounded-lg bg-[#7C5CFC] hover:bg-[#6B4CE6] text-white text-[14px] font-semibold transition-colors shadow-lg shadow-[#7C5CFC]/20"
+                  className="px-5 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[14px] font-semibold transition-colors shadow-lg shadow-primary/20"
                 >
                   Get 50 Free Leads
                 </Link>
@@ -111,7 +111,7 @@ export function Navbar() {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="lg:hidden p-2 rounded-lg text-[#F5F5F7] hover:bg-[#14141C] transition-colors"
+            className="lg:hidden p-2 rounded-lg text-foreground hover:bg-muted transition-colors"
             aria-label="Toggle menu"
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -126,25 +126,25 @@ export function Navbar() {
 
         {/* Mobile Menu */}
         {mobileOpen && (
-          <div className="lg:hidden border-t border-[#25252F] py-4 space-y-1 animate-fade-in-up">
+          <div className="lg:hidden border-t border-border py-4 space-y-1 animate-fade-in-up">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 className={`block px-4 py-3 rounded-lg text-[15px] font-medium transition-colors ${
                   pathname === link.href
-                    ? 'text-[#F5F5F7] bg-[#1A1A24]'
-                    : 'text-[#A8A8B8] hover:text-[#F5F5F7] hover:bg-[#14141C]'
+                    ? 'text-foreground bg-muted'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 }`}
               >
                 {link.label}
               </Link>
             ))}
-            <div className="pt-3 mt-3 border-t border-[#25252F] space-y-2">
+            <div className="pt-3 mt-3 border-t border-border space-y-2">
               {isSignedIn ? (
                 <Link
                   href="/dashboard"
-                  className="block px-4 py-3 rounded-lg bg-[#7C5CFC] text-white text-center text-[15px] font-semibold"
+                  className="block px-4 py-3 rounded-lg bg-primary text-white text-center text-[15px] font-semibold"
                 >
                   Open Dashboard
                 </Link>
@@ -152,13 +152,13 @@ export function Navbar() {
                 <>
                   <Link
                     href="/sign-in"
-                    className="block px-4 py-3 rounded-lg text-[#A8A8B8] text-center text-[15px] font-medium border border-[#25252F]"
+                    className="block px-4 py-3 rounded-lg text-muted-foreground text-center text-[15px] font-medium border border-border"
                   >
                     Sign In
                   </Link>
                   <Link
                     href="/sign-up"
-                    className="block px-4 py-3 rounded-lg bg-[#7C5CFC] text-white text-center text-[15px] font-semibold"
+                    className="block px-4 py-3 rounded-lg bg-primary text-white text-center text-[15px] font-semibold"
                   >
                     Get 50 Free Leads
                   </Link>

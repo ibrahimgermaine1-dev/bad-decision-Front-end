@@ -4,17 +4,17 @@ import Link from 'next/link'
 
 export default function HowItWorksPage() {
   return (
-    <div className="bg-[#08080C]">
+    <div className="bg-background">
       {/* Hero */}
       <section className="bg-radial-glow bg-grid pt-16 pb-20 sm:pt-24 sm:pb-28">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-block px-4 py-1.5 rounded-full bg-[#1A1535] border border-[#7C5CFC]/20 mb-6">
-            <span className="text-[12px] text-[#7C5CFC] font-semibold uppercase tracking-wider">How It Works</span>
+          <div className="inline-block px-4 py-1.5 rounded-full bg-muted border border-border mb-6">
+            <span className="text-[12px] text-primary font-semibold uppercase tracking-wider">How It Works</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-[#F5F5F7] mb-6 leading-tight">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground mb-6 leading-tight">
             From search to closed deal in <span className="text-gradient-violet">four steps.</span>
           </h1>
-          <p className="text-lg sm:text-xl text-[#A8A8B8] max-w-2xl mx-auto leading-relaxed">
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
             You do not need to learn anything new. You do not need to install anything.
             You just type what you want and we go find it. Here is exactly what happens.
           </p>
@@ -25,12 +25,12 @@ export default function HowItWorksPage() {
       <section className="py-20 sm:py-24">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-[auto_1fr] gap-8 items-start">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#7C5CFC] to-[#3B82F6] flex items-center justify-center flex-shrink-0">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
               <span className="text-3xl font-bold text-white">01</span>
             </div>
             <div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-[#F5F5F7] mb-4">Tell us who you want to reach.</h2>
-              <div className="space-y-4 text-[15px] sm:text-base text-[#A8A8B8] leading-relaxed">
+              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-4">Tell us who you want to reach.</h2>
+              <div className="space-y-4 text-[15px] sm:text-base text-muted-foreground leading-relaxed">
                 <p>
                   This is the easiest part. You open your dashboard. You see a search bar.
                   You type what you want. That is it. No forms. No filters you do not understand. No setup wizard.
@@ -55,18 +55,18 @@ export default function HowItWorksPage() {
         </div>
       </section>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><div className="h-px bg-[#25252F]"></div></div>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><div className="h-px bg-border"></div></div>
 
       {/* Step 2 */}
       <section className="py-20 sm:py-24">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-[auto_1fr] gap-8 items-start">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#7C5CFC] to-[#3B82F6] flex items-center justify-center flex-shrink-0">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
               <span className="text-3xl font-bold text-white">02</span>
             </div>
             <div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-[#F5F5F7] mb-4">We scan the live internet for real buyers.</h2>
-              <div className="space-y-4 text-[15px] sm:text-base text-[#A8A8B8] leading-relaxed">
+              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-4">We scan the live internet for real buyers.</h2>
+              <div className="space-y-4 text-[15px] sm:text-base text-muted-foreground leading-relaxed">
                 <p>
                   The moment you hit search, the system goes to work. It does not look in an old database.
                   It does not pull from a list someone sold us three years ago. It goes to the live internet.
@@ -94,18 +94,18 @@ export default function HowItWorksPage() {
         </div>
       </section>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><div className="h-px bg-[#25252F]"></div></div>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><div className="h-px bg-border"></div></div>
 
       {/* Step 3 */}
       <section className="py-20 sm:py-24">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-[auto_1fr] gap-8 items-start">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#7C5CFC] to-[#3B82F6] flex items-center justify-center flex-shrink-0">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
               <span className="text-3xl font-bold text-white">03</span>
             </div>
             <div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-[#F5F5F7] mb-4">We test every email inbox before you pay.</h2>
-              <div className="space-y-4 text-[15px] sm:text-base text-[#A8A8B8] leading-relaxed">
+              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-4">We test every email inbox before you pay.</h2>
+              <div className="space-y-4 text-[15px] sm:text-base text-muted-foreground leading-relaxed">
                 <p>
                   This is the part that makes us different from everyone else.
                   Every other lead vendor will sell you an email and hope it works.
@@ -134,18 +134,18 @@ export default function HowItWorksPage() {
         </div>
       </section>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><div className="h-px bg-[#25252F]"></div></div>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><div className="h-px bg-border"></div></div>
 
       {/* Step 4 */}
       <section className="py-20 sm:py-24">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-[auto_1fr] gap-8 items-start">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#7C5CFC] to-[#3B82F6] flex items-center justify-center flex-shrink-0">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
               <span className="text-3xl font-bold text-white">04</span>
             </div>
             <div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-[#F5F5F7] mb-4">You get verified contacts ready to close.</h2>
-              <div className="space-y-4 text-[15px] sm:text-base text-[#A8A8B8] leading-relaxed">
+              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-4">You get verified contacts ready to close.</h2>
+              <div className="space-y-4 text-[15px] sm:text-base text-muted-foreground leading-relaxed">
                 <p>
                   When the search is done, you get a clean list of leads.
                   Each lead has the company name. The website. The decision maker and their title.
@@ -173,17 +173,17 @@ export default function HowItWorksPage() {
       </section>
 
       {/* CTA */}
-      <section className="py-20 sm:py-24 bg-[#0E0E14] border-t border-[#25252F]">
+      <section className="py-20 sm:py-24 bg-card border-t border-border">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-[#F5F5F7] mb-4">
+          <h2 className="text-3xl sm:text-4xl font-bold text-card-foreground mb-4">
             Ready to try it yourself?
           </h2>
-          <p className="text-lg text-[#A8A8B8] mb-8">
+          <p className="text-lg text-muted-foreground mb-8">
             You get 50 free leads the moment you sign up. See step one through step four with your own eyes.
           </p>
           <Link
             href="/sign-up"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-[#7C5CFC] hover:bg-[#6B4CE6] text-white text-base font-semibold transition-all shadow-lg shadow-[#7C5CFC]/30"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-primary hover:bg-primary/90 text-white text-base font-semibold transition-all shadow-lg shadow-primary/30"
           >
             Get My 50 Free Leads
           </Link>

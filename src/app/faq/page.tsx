@@ -23,7 +23,7 @@ const FAQ_SECTIONS: FAQSection[] = [
       },
       {
         question: 'How is this different from other lead tools?',
-        answer: 'Other tools sell you old lists. They do not test the emails. They do not care if half the list is dead. We do the opposite. We go find real buyers right now. We test every email before you pay. If the email does not work, you never see it. You only spend coins on contacts that can actually receive your message.',
+        answer: 'Other tools sell you old lists. They do not test the emails. They do not care if half the list is dead. We do the opposite. We go find real buyers right now. We test every email before you pay. If the email does not work, you never see it. You only spend credits on contacts that can actually receive your message.',
       },
       {
         question: 'Who built this and why?',
@@ -61,7 +61,7 @@ const FAQ_SECTIONS: FAQSection[] = [
       },
       {
         question: 'What happens if an email bounces anyway?',
-        answer: 'You get your coins back. No questions. No forms. No waiting. You tell us it bounced and we refund the coins. We are that confident in our testing. If we are wrong, you do not pay for our mistake.',
+        answer: 'You get your credits back. No questions. No forms. No waiting. You tell us it bounced and we refund the credits. We are that confident in our testing. If we are wrong, you do not pay for our mistake.',
       },
       {
         question: 'What is a catch-all email?',
@@ -74,31 +74,31 @@ const FAQ_SECTIONS: FAQSection[] = [
     ],
   },
   {
-    title: 'Pricing and Coins',
+    title: 'Pricing and Credits',
     items: [
       {
         question: 'How many free leads do I get?',
         answer: 'You get 50 free leads the moment you sign up. No credit card. No catch. You can run real searches and get real contacts. If you like what you see, you can buy more. If you do not, you walk away having lost nothing.',
       },
       {
-        question: 'What is a coin?',
-        answer: 'A coin is what you spend to get a lead. Each verified contact costs a few coins. The cost depends on your plan. Free accounts pay 2 coins per lead. Paid accounts pay 1 to 3 coins depending on the plan. You always know the cost before you search.',
+        question: 'What is a credit?',
+        answer: 'A credit is what you spend to get a lead. Each verified contact costs a few credits. The cost depends on your plan. Free accounts pay 2 credits per lead. Paid accounts pay 1 to 3 credits depending on the plan. You always know the cost before you search.',
       },
       {
-        question: 'Do coins expire?',
-        answer: 'No. Coins you buy are yours forever. Use them today. Use them next year. Use them whenever you want. They do not disappear.',
+        question: 'Do credits expire?',
+        answer: 'No. Credits you buy are yours forever. Use them today. Use them next year. Use them whenever you want. They do not disappear.',
       },
       {
         question: 'Can I cancel my plan?',
-        answer: 'Yes. Cancel anytime. No contracts. No fees. Keep your coins. Keep your leads. Keep your collections. If you want to come back later, your account will be waiting.',
+        answer: 'Yes. Cancel anytime. No contracts. No fees. Keep your credits. Keep your leads. Keep your collections. If you want to come back later, your account will be waiting.',
       },
       {
         question: 'What payment methods do you accept?',
         answer: 'We use Paystack for payments. They accept cards from around the world. If you are in Nigeria, you can pay in Naira. If you are anywhere else, you can pay in your local currency. The price adjusts based on where you are.',
       },
       {
-        question: 'Do I need a plan to buy coins?',
-        answer: 'No. You can buy coins one at a time without any plan. Buy what you need, when you need it. Some people never buy a plan. They just top up coins when they run out. That works fine.',
+        question: 'Do I need a plan to buy credits?',
+        answer: 'No. You can buy credits one at a time without any plan. Buy what you need, when you need it. Some people never buy a plan. They just top up credits when they run out. That works fine.',
       },
     ],
   },
@@ -119,7 +119,7 @@ const FAQ_SECTIONS: FAQSection[] = [
       },
       {
         question: 'What happens to my leads if I cancel?',
-        answer: 'You keep them. Leads you have already downloaded are yours. Collections you have built are yours. We do not take them back. If you cancel, you just stop getting new coins. Everything you have earned stays yours.',
+        answer: 'You keep them. Leads you have already downloaded are yours. Collections you have built are yours. We do not take them back. If you cancel, you just stop getting new credits. Everything you have earned stays yours.',
       },
     ],
   },
@@ -140,17 +140,17 @@ export default function FAQPage() {
   }
 
   return (
-    <div className="bg-[#08080C]">
+    <div className="bg-background">
       {/* Hero */}
       <section className="bg-radial-glow bg-grid pt-16 pb-20 sm:pt-24 sm:pb-28">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-block px-4 py-1.5 rounded-full bg-[#1A1535] border border-[#7C5CFC]/20 mb-6">
-            <span className="text-[12px] text-[#7C5CFC] font-semibold uppercase tracking-wider">Questions</span>
+          <div className="inline-block px-4 py-1.5 rounded-full bg-muted border border-border mb-6">
+            <span className="text-[12px] text-primary font-semibold uppercase tracking-wider">Questions</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-[#F5F5F7] mb-6 leading-tight">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground mb-6 leading-tight">
             Everything you want to know.
           </h1>
-          <p className="text-lg sm:text-xl text-[#A8A8B8] max-w-2xl mx-auto leading-relaxed">
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
             If your question is not here, email us at support@baddecision.ai.
             A real person will answer. Usually within a few hours.
           </p>
@@ -162,7 +162,7 @@ export default function FAQPage() {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           {FAQ_SECTIONS.map((section, sectionIndex) => (
             <div key={sectionIndex} className="mb-12">
-              <h2 className="text-xl sm:text-2xl font-bold text-[#F5F5F7] mb-5">{section.title}</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-5">{section.title}</h2>
               <div className="space-y-3">
                 {section.items.map((item, itemIndex) => {
                   const key = `${sectionIndex}-${itemIndex}`
@@ -171,16 +171,16 @@ export default function FAQPage() {
                     <div
                       key={itemIndex}
                       className={`card-premium overflow-hidden transition-all ${
-                        isOpen ? 'border-[#7C5CFC]/30' : ''
+                        isOpen ? 'border-primary/30' : ''
                       }`}
                     >
                       <button
                         onClick={() => toggle(sectionIndex, itemIndex)}
                         className="w-full flex items-center justify-between gap-4 p-5 sm:p-6 text-left"
                       >
-                        <span className="text-[15px] sm:text-base font-semibold text-[#F5F5F7]">{item.question}</span>
+                        <span className="text-[15px] sm:text-base font-semibold text-foreground">{item.question}</span>
                         <svg
-                          className={`w-5 h-5 flex-shrink-0 text-[#7C5CFC] transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                          className={`w-5 h-5 flex-shrink-0 text-primary transition-transform ${isOpen ? 'rotate-180' : ''}`}
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -190,7 +190,7 @@ export default function FAQPage() {
                       </button>
                       {isOpen && (
                         <div className="px-5 sm:px-6 pb-5 sm:pb-6">
-                          <p className="text-[14px] sm:text-[15px] text-[#A8A8B8] leading-relaxed">{item.answer}</p>
+                          <p className="text-[14px] sm:text-[15px] text-muted-foreground leading-relaxed">{item.answer}</p>
                         </div>
                       )}
                     </div>
@@ -203,24 +203,24 @@ export default function FAQPage() {
       </section>
 
       {/* Still Have Questions */}
-      <section className="py-20 bg-[#0E0E14] border-t border-[#25252F]">
+      <section className="py-20 bg-card border-t border-border">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#F5F5F7] mb-4">
+          <h2 className="text-2xl sm:text-3xl font-bold text-card-foreground mb-4">
             Still have questions?
           </h2>
-          <p className="text-lg text-[#A8A8B8] mb-8">
+          <p className="text-lg text-muted-foreground mb-8">
             We are real people and we answer fast. Email us or start a free account and ask inside the dashboard.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               href="/contact"
-              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#7C5CFC] hover:bg-[#6B4CE6] text-white text-base font-semibold transition-all shadow-lg shadow-[#7C5CFC]/30"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-primary hover:bg-primary/90 text-white text-base font-semibold transition-all shadow-lg shadow-primary/30"
             >
               Contact Us
             </Link>
             <Link
               href="/sign-up"
-              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#14141C] border border-[#25252F] hover:border-[#3D3D4A] text-[#F5F5F7] text-base font-semibold transition-all"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-secondary border border-border hover:border-primary/50 text-card-foreground text-base font-semibold transition-all"
             >
               Get 50 Free Leads
             </Link>

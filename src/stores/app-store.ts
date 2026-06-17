@@ -1,6 +1,6 @@
 /**
- * Bad Decision AI — Application Store
- * Manages navigation, coins, search, and dashboard state
+ * Bad Decision — Application Store
+ * Manages navigation, credits, search, and dashboard state
  * Updated for real Clerk auth (isAuthenticated removed — use useAuth() instead)
  */
 import { create } from 'zustand'
@@ -12,19 +12,20 @@ export type AppView =
   | 'landing' | 'pricing' | 'faq' | 'contact'
   | 'signup' | 'signin'
   | 'dashboard-idle' | 'dashboard-searching' | 'dashboard-results'
-  | 'dashboard-coin-vault' | 'dashboard-support'
+  | 'dashboard-credit-vault' | 'dashboard-support'
 
 export type UserTier = 'free' | 'starter' | 'growth' | 'pro'
 export type EngineType = 'ads_intent' | 'smb_maps' | 'web_absent' | 'social_intent'
 export type TaskStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'exhausted' | 'failed'
 
-export interface CoinBalance {
-  coins_balance: number
-  coins_reserved: number
-  coins_lifetime: number
+export interface CreditBalance {
+  credits_balance: number
+  credits_reserved: number
+  total_purchased: number
 }
 
 export interface Lead {
+  id?: string
   domain_hash: string
   company_name: string
   website_url: string
@@ -34,6 +35,7 @@ export interface Lead {
   is_catchall: boolean
   linkedin: string
   instagram: string
+  facebook?: string
   phone: string
   ad_platform?: string
   address?: string
@@ -41,6 +43,7 @@ export interface Lead {
   aggregator_url?: string
   platform?: string
   intent_text?: string
+  validation_gates_passed?: number
 }
 
 export interface SmartCollection {
@@ -65,11 +68,11 @@ interface AppState {
   userCountry: string
   setUserCountry: (country: string) => void
 
-  // Coins
-  coinBalance: CoinBalance
-  setCoinBalance: (balance: CoinBalance) => void
-  deductCoins: (amount: number) => void
-  addCoins: (amount: number) => void
+  // Credits
+  creditBalance: CreditBalance
+  setCreditBalance: (balance: CreditBalance) => void
+  deductCredits: (amount: number) => void
+  addCredits: (amount: number) => void
 
   // Search
   selectedEngine: EngineType | null
@@ -99,22 +102,22 @@ export const useAppStore = create<AppState>((set) => ({
   userCountry: 'NG',
   setUserCountry: (userCountry) => set({ userCountry }),
 
-  coinBalance: { coins_balance: 0, coins_reserved: 0, coins_lifetime: 0 },
-  setCoinBalance: (coinBalance) => set({ coinBalance }),
-  deductCoins: (amount) =>
+  creditBalance: { credits_balance: 0, credits_reserved: 0, total_purchased: 0 },
+  setCreditBalance: (creditBalance) => set({ creditBalance }),
+  deductCredits: (amount) =>
     set((state) => ({
-      coinBalance: {
-        ...state.coinBalance,
-        coins_balance: Math.max(0, state.coinBalance.coins_balance - amount),
-        coins_reserved: state.coinBalance.coins_reserved + amount,
+      creditBalance: {
+        ...state.creditBalance,
+        credits_balance: Math.max(0, state.creditBalance.credits_balance - amount),
+        credits_reserved: state.creditBalance.credits_reserved + amount,
       },
     })),
-  addCoins: (amount) =>
+  addCredits: (amount) =>
     set((state) => ({
-      coinBalance: {
-        ...state.coinBalance,
-        coins_balance: state.coinBalance.coins_balance + amount,
-        coins_lifetime: state.coinBalance.coins_lifetime + amount,
+      creditBalance: {
+        ...state.creditBalance,
+        credits_balance: state.creditBalance.credits_balance + amount,
+        total_purchased: state.creditBalance.total_purchased + amount,
       },
     })),
 

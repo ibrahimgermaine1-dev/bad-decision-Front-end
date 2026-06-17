@@ -1,5 +1,5 @@
 /**
- * Bad Decision AI — CSV Shield Export
+ * Bad Decision — CSV Shield Export
  * Phone numbers wrapped in ="++[Number]" format
  * to prevent Excel/Sheets from stripping the + prefix
  * or converting to scientific notation.

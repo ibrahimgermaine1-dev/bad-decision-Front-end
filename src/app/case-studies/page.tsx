@@ -70,17 +70,17 @@ export default function CaseStudiesPage() {
   ]
 
   return (
-    <div className="bg-[#08080C]">
+    <div className="bg-background">
       {/* Hero */}
       <section className="bg-radial-glow bg-grid pt-16 pb-20 sm:pt-24 sm:pb-28">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-block px-4 py-1.5 rounded-full bg-[#0D2818] border border-[#34D399]/20 mb-6">
-            <span className="text-[12px] text-[#34D399] font-semibold uppercase tracking-wider">Real Results</span>
+          <div className="inline-block px-4 py-1.5 rounded-full bg-success/10 border border-success/20 mb-6">
+            <span className="text-[12px] text-success font-semibold uppercase tracking-wider">Real Results</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-[#F5F5F7] mb-6 leading-tight">
-            People who stopped making <span className="text-[#F87171]">bad decisions.</span>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground mb-6 leading-tight">
+            People who stopped making <span className="text-destructive">bad decisions.</span>
           </h1>
-          <p className="text-lg sm:text-xl text-[#A8A8B8] max-w-2xl mx-auto leading-relaxed">
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
             These are real stories from real business owners. They were tired of buying garbage leads.
             They found something better. Here is what happened.
           </p>
@@ -89,19 +89,19 @@ export default function CaseStudiesPage() {
 
       {/* Stories */}
       {stories.map((story, i) => (
-        <section key={i} className={`py-20 sm:py-24 ${i % 2 === 1 ? 'bg-[#0E0E14] border-y border-[#25252F]' : ''}`}>
+        <section key={i} className={`py-20 sm:py-24 ${i % 2 === 1 ? 'bg-muted border-y border-border' : ''}`}>
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start gap-6 mb-10">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#7C5CFC] to-[#3B82F6] flex items-center justify-center flex-shrink-0">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
                 <span className="text-2xl font-bold text-white">{story.name.charAt(0)}</span>
               </div>
               <div>
-                <h2 className="text-2xl sm:text-3xl font-bold text-[#F5F5F7] mb-2">{story.headline}</h2>
-                <div className="text-[15px] text-[#A8A8B8]">
+                <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">{story.headline}</h2>
+                <div className="text-[15px] text-muted-foreground">
                   {story.name} · {story.role} · {story.location}
                 </div>
-                <div className="inline-block mt-2 px-3 py-0.5 rounded-full bg-[#1A1535] border border-[#7C5CFC]/20 text-[12px] text-[#7C5CFC] font-semibold">
+                <div className="inline-block mt-2 px-3 py-0.5 rounded-full bg-card border border-border text-[12px] text-primary font-semibold">
                   {story.plan}
                 </div>
               </div>
@@ -110,7 +110,7 @@ export default function CaseStudiesPage() {
             {/* Story */}
             <div className="space-y-4 mb-10">
               {story.story.map((para, j) => (
-                <p key={j} className="text-[15px] sm:text-base text-[#A8A8B8] leading-relaxed">{para}</p>
+                <p key={j} className="text-[15px] sm:text-base text-muted-foreground leading-relaxed">{para}</p>
               ))}
             </div>
 
@@ -119,7 +119,7 @@ export default function CaseStudiesPage() {
               {story.results.map((result, j) => (
                 <div key={j} className="card-premium p-5 text-center">
                   <div className="text-2xl sm:text-3xl font-bold text-gradient-violet mb-1">{result.value}</div>
-                  <div className="text-[12px] text-[#A8A8B8]">{result.label}</div>
+                  <div className="text-[12px] text-muted-foreground">{result.label}</div>
                 </div>
               ))}
             </div>
@@ -128,18 +128,18 @@ export default function CaseStudiesPage() {
       ))}
 
       {/* CTA */}
-      <section className="py-20 sm:py-24 bg-[#0E0E14] border-t border-[#25252F]">
+      <section className="py-20 sm:py-24 bg-card border-t border-border">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-[#F5F5F7] mb-4">
+          <h2 className="text-3xl sm:text-4xl font-bold text-card-foreground mb-4">
             Your story could be next.
           </h2>
-          <p className="text-lg text-[#A8A8B8] mb-8">
+          <p className="text-lg text-muted-foreground mb-8">
             These people were exactly where you are now. Tired of bad leads. Tired of wasted money.
             They took one chance on a free account. It changed their business.
           </p>
           <Link
             href="/sign-up"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-[#7C5CFC] hover:bg-[#6B4CE6] text-white text-base font-semibold transition-all shadow-lg shadow-[#7C5CFC]/30"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-primary hover:bg-primary/90 text-white text-base font-semibold transition-all shadow-lg shadow-primary/30"
           >
             Start Your Free Account
           </Link>

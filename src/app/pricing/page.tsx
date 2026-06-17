@@ -8,8 +8,8 @@
 import { useState } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { useAppStore } from '@/stores/app-store'
-import { fetchCoinBalance, verifyPayment } from '@/lib/api'
-import { TIERS, COIN_ADDONS, type TierId, getTierById, formatAddonPrice } from '@/lib/pricing'
+import { fetchCreditBalance, verifyPayment } from '@/lib/api'
+import { TIERS, CREDIT_ADDONS, type TierId, getTierById, formatAddonPrice } from '@/lib/pricing'
 import Script from 'next/script'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation'
 export default function PricingPage() {
   const { isSignedIn, userId } = useAuth()
   const { user } = useUser()
-  const { userCountry, tier, setTier, setCoinBalance } = useAppStore()
+  const { userCountry, tier, setTier, setCreditBalance } = useAppStore()
   const [paymentProcessing, setPaymentProcessing] = useState(false)
   const [paymentError, setPaymentError] = useState('')
 
@@ -57,10 +57,10 @@ export default function PricingPage() {
           metadata: {
             user_id: userId || '',
             plan: selectedTier.id,
-            coins: selectedTier.coins,
+            credits: selectedTier.credits,
             custom_fields: [
               { display_name: 'Plan', variable_name: 'plan', value: selectedTier.id },
-              { display_name: 'Coins', variable_name: 'coins', value: selectedTier.coins.toString() },
+              { display_name: 'Credits', variable_name: 'credits', value: selectedTier.credits.toString() },
             ],
           },
           callback: (response: any) => {
@@ -68,20 +68,20 @@ export default function PricingPage() {
             if (reference) {
               verifyPayment(reference).then((result) => {
                 if (result.verified && result.balance) {
-                  setCoinBalance({
-                    coins_balance: result.balance.coins_balance ?? 0,
-                    coins_reserved: result.balance.coins_reserved ?? 0,
-                    coins_lifetime: result.balance.coins_lifetime ?? 0,
+                  setCreditBalance({
+                    credits_balance: result.balance.credits_balance ?? 0,
+                    credits_reserved: result.balance.credits_reserved ?? 0,
+                    total_purchased: result.balance.total_purchased ?? 0,
                   })
                 }
               }).catch(() => {
                 setTimeout(async () => {
                   try {
-                    const balance = await fetchCoinBalance()
-                    setCoinBalance({
-                      coins_balance: balance.coins_balance ?? 0,
-                      coins_reserved: balance.coins_reserved ?? 0,
-                      coins_lifetime: balance.coins_lifetime ?? 0,
+                    const balance = await fetchCreditBalance()
+                    setCreditBalance({
+                      credits_balance: balance.credits_balance ?? 0,
+                      credits_reserved: balance.credits_reserved ?? 0,
+                      total_purchased: balance.total_purchased ?? 0,
                     })
                   } catch {}
                 }, 3000)
@@ -106,7 +106,7 @@ export default function PricingPage() {
     }
   }
 
-  const handleBuyCoins = (addon: typeof COIN_ADDONS[0]) => {
+  const handleBuyCredits = (addon: typeof CREDIT_ADDONS[0]) => {
     if (!isSignedIn) {
       router.push('/sign-in')
       return
@@ -131,10 +131,10 @@ export default function PricingPage() {
           currency: 'NGN',
           metadata: {
             user_id: userId || '',
-            coins: addon.coins,
-            type: 'coin_addon',
+            credits: addon.credits,
+            type: 'credit_addon',
             custom_fields: [
-              { display_name: 'Coins', variable_name: 'coins', value: addon.coins.toString() },
+              { display_name: 'Credits', variable_name: 'credits', value: addon.credits.toString() },
             ],
           },
           callback: (response: any) => {
@@ -142,21 +142,21 @@ export default function PricingPage() {
             if (reference) {
               verifyPayment(reference).then((result) => {
                 if (result.verified && result.balance) {
-                  setCoinBalance({
-                    coins_balance: result.balance.coins_balance ?? 0,
-                    coins_reserved: result.balance.coins_reserved ?? 0,
-                    coins_lifetime: result.balance.coins_lifetime ?? 0,
+                  setCreditBalance({
+                    credits_balance: result.balance.credits_balance ?? 0,
+                    credits_reserved: result.balance.credits_reserved ?? 0,
+                    total_purchased: result.balance.total_purchased ?? 0,
                   })
                 }
                 setPaymentProcessing(false)
               }).catch(() => {
                 setTimeout(async () => {
                   try {
-                    const balance = await fetchCoinBalance()
-                    setCoinBalance({
-                      coins_balance: balance.coins_balance ?? 0,
-                      coins_reserved: balance.coins_reserved ?? 0,
-                      coins_lifetime: balance.coins_lifetime ?? 0,
+                    const balance = await fetchCreditBalance()
+                    setCreditBalance({
+                      credits_balance: balance.credits_balance ?? 0,
+                      credits_reserved: balance.credits_reserved ?? 0,
+                      total_purchased: balance.total_purchased ?? 0,
                     })
                   } catch {}
                 }, 3000)
@@ -182,26 +182,26 @@ export default function PricingPage() {
   const allTiers = TIERS
 
   return (
-    <div className="bg-[#08080C]">
+    <div className="bg-background">
       <Script src="https://js.paystack.co/v2/inline.js" />
 
       {/* Hero */}
       <section className="bg-radial-glow bg-grid pt-16 pb-20 sm:pt-24 sm:pb-28">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-block px-4 py-1.5 rounded-full bg-[#1A1535] border border-[#7C5CFC]/20 mb-6">
-            <span className="text-[12px] text-[#7C5CFC] font-semibold uppercase tracking-wider">Pricing</span>
+          <div className="inline-block px-4 py-1.5 rounded-full bg-muted border border-border mb-6">
+            <span className="text-[12px] text-primary font-semibold uppercase tracking-wider">Pricing</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-[#F5F5F7] mb-6 leading-tight">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground mb-6 leading-tight">
             Start free. <br /><span className="text-gradient-violet">Pay only when it works.</span>
           </h1>
-          <p className="text-lg sm:text-xl text-[#A8A8B8] max-w-2xl mx-auto leading-relaxed mb-6">
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-6">
             You get 50 free leads the moment you sign up. No credit card needed.
-            When you want more, pick a plan that fits. Or buy coins one at a time.
+            When you want more, pick a plan that fits. Or buy credits one at a time.
             You are never locked in.
           </p>
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#14141C] border border-[#25252F] text-[13px]">
-            <span className="text-[#6B6B7B]">Currency:</span>
-            <span className="font-semibold text-[#F5F5F7]">{isNigeria ? 'Nigerian Naira' : 'US Dollar'}</span>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-card border border-border text-[13px]">
+            <span className="text-muted-foreground">Currency:</span>
+            <span className="font-semibold text-card-foreground">{isNigeria ? 'Nigerian Naira' : 'US Dollar'}</span>
           </div>
         </div>
       </section>
@@ -209,8 +209,8 @@ export default function PricingPage() {
       {/* Payment Error */}
       {paymentError && (
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
-          <div className="rounded-xl bg-[#2A1010] border border-[#F87171]/20 p-4">
-            <p className="text-[14px] text-[#F87171]">{paymentError}</p>
+          <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-4">
+            <p className="text-[14px] text-destructive">{paymentError}</p>
           </div>
         </div>
       )}
@@ -227,45 +227,45 @@ export default function PricingPage() {
                 <div
                   key={plan.id}
                   className={`card-premium p-6 sm:p-7 relative flex flex-col ${
-                    isPopular ? 'border-[#7C5CFC]/40 glow-violet-sm' : ''
+                    isPopular ? 'border-primary/40 glow-violet-sm' : ''
                   }`}
                 >
                   {isPopular && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <span className="rounded-full bg-[#7C5CFC] px-3 py-1 text-[11px] font-bold text-white uppercase tracking-wider">
+                      <span className="rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-white uppercase tracking-wider">
                         Most Popular
                       </span>
                     </div>
                   )}
 
-                  <h3 className="text-lg font-bold text-[#F5F5F7]">{plan.name}</h3>
+                  <h3 className="text-lg font-bold text-foreground">{plan.name}</h3>
 
                   <div className="mt-4">
                     {plan.priceUSD === 0 ? (
-                      <span className="text-4xl font-bold text-[#F5F5F7]">Free</span>
+                      <span className="text-4xl font-bold text-foreground">Free</span>
                     ) : (
                       <>
-                        <span className="text-4xl font-bold text-[#F5F5F7]">
+                        <span className="text-4xl font-bold text-foreground">
                           {isNigeria ? `₦${plan.priceNGN.toLocaleString()}` : `$${plan.priceUSD}`}
                         </span>
-                        <span className="text-sm text-[#6B6B7B]">/mo</span>
+                        <span className="text-sm text-muted-foreground">/mo</span>
                       </>
                     )}
                   </div>
 
-                  <div className="mt-2 inline-block px-2.5 py-1 rounded-md bg-[#1A1535] text-[13px] font-semibold text-[#7C5CFC]">
-                    {plan.coins.toLocaleString()} coins
+                  <div className="mt-2 inline-block px-2.5 py-1 rounded-md bg-muted text-[13px] font-semibold text-primary">
+                    {plan.credits.toLocaleString()} credits
                   </div>
 
-                  <div className="h-px bg-[#25252F] my-5"></div>
+                  <div className="h-px bg-border my-5"></div>
 
                   <ul className="space-y-2.5 flex-1">
                     {plan.features.map((feature) => (
                       <li key={feature} className="flex items-start gap-2.5">
-                        <svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#34D399]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
-                        <span className="text-[13px] text-[#A8A8B8] leading-snug">{feature}</span>
+                        <span className="text-[13px] text-muted-foreground leading-snug">{feature}</span>
                       </li>
                     ))}
                   </ul>
@@ -273,10 +273,10 @@ export default function PricingPage() {
                   <button
                     className={`w-full mt-6 py-3 rounded-lg font-semibold text-[14px] transition-all ${
                       isCurrent
-                        ? 'bg-[#14141C] text-[#6B6B7B] cursor-default border border-[#25252F]'
+                        ? 'bg-muted text-muted-foreground cursor-default border border-border'
                         : isPopular
-                        ? 'bg-[#7C5CFC] hover:bg-[#6B4CE6] text-white shadow-lg shadow-[#7C5CFC]/20'
-                        : 'bg-[#14141C] hover:bg-[#1A1A24] text-[#F5F5F7] border border-[#25252F] hover:border-[#3D3D4A]'
+                        ? 'bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20'
+                        : 'bg-card hover:bg-card/80 text-card-foreground border border-border hover:border-primary/50'
                     }`}
                     disabled={isCurrent || paymentProcessing}
                     onClick={() => handlePurchase(plan.id)}
@@ -289,39 +289,39 @@ export default function PricingPage() {
           </div>
 
           <div className="mt-10 text-center">
-            <p className="text-[14px] text-[#6B6B7B]">
-              Every new account gets <span className="font-semibold text-[#F5F5F7]">50 free coins</span>. No credit card needed.
+            <p className="text-[14px] text-muted-foreground">
+              Every new account gets <span className="font-semibold text-foreground">50 free credits</span>. No credit card needed.
             </p>
           </div>
         </div>
       </section>
 
       {/* Value Section */}
-      <section className="py-20 bg-[#0E0E14] border-y border-[#25252F]">
+      <section className="py-20 bg-card border-y border-border">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#F5F5F7] mb-8 text-center">Why this is the best money you will spend.</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-card-foreground mb-8 text-center">Why this is the best money you will spend.</h2>
           <div className="space-y-6">
             <div className="card-premium p-7">
-              <h3 className="text-lg font-bold text-[#F5F5F7] mb-3">One closed deal pays for a year.</h3>
-              <p className="text-[15px] text-[#A8A8B8] leading-relaxed">
+              <h3 className="text-lg font-bold text-foreground mb-3">One closed deal pays for a year.</h3>
+              <p className="text-[15px] text-muted-foreground leading-relaxed">
                 The Pro plan costs $35 a month. If you close one client from our leads, you have paid for the entire year.
                 Everything after that is profit. Most of our users close their first deal in the first week.
                 Do the math. This is the easiest yes you will ever say.
               </p>
             </div>
             <div className="card-premium p-7">
-              <h3 className="text-lg font-bold text-[#F5F5F7] mb-3">You are not paying for dead emails.</h3>
-              <p className="text-[15px] text-[#A8A8B8] leading-relaxed">
+              <h3 className="text-lg font-bold text-foreground mb-3">You are not paying for dead emails.</h3>
+              <p className="text-[15px] text-muted-foreground leading-relaxed">
                 Every other lead vendor charges you for every contact on the list.
                 The good ones and the dead ones. With us, you only pay for emails that work.
-                The dead ones never reach you. That means every coin you spend goes toward a real lead.
+                The dead ones never reach you. That means every credit you spend goes toward a real lead.
                 You get more value for less money. That is not a pitch. That is math.
               </p>
             </div>
             <div className="card-premium p-7">
-              <h3 className="text-lg font-bold text-[#F5F5F7] mb-3">Cancel anytime. No contracts.</h3>
-              <p className="text-[15px] text-[#A8A8B8] leading-relaxed">
-                You are not locked in. Cancel your plan anytime. Keep your coins.
+              <h3 className="text-lg font-bold text-foreground mb-3">Cancel anytime. No contracts.</h3>
+              <p className="text-[15px] text-muted-foreground leading-relaxed">
+                You are not locked in. Cancel your plan anytime. Keep your credits.
                 Keep your leads. Keep your collections. If you want to come back later, your account will be waiting.
                 We do not believe in trapping people. We believe in earning their stay.
               </p>
@@ -330,32 +330,32 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* Coin Addons */}
+      {/* Credit Addons */}
       <section className="py-20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <div className="inline-block px-4 py-1.5 rounded-full bg-[#1A1535] border border-[#7C5CFC]/20 mb-4">
-              <span className="text-[12px] text-[#7C5CFC] font-semibold uppercase tracking-wider">Coin Top-Ups</span>
+            <div className="inline-block px-4 py-1.5 rounded-full bg-muted border border-border mb-4">
+              <span className="text-[12px] text-primary font-semibold uppercase tracking-wider">Credit Top-Ups</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#F5F5F7] mb-3">Need more coins? Buy what you need.</h2>
-            <p className="text-[15px] text-[#A8A8B8]">No plan needed. Buy coins anytime. They never expire.</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-3">Need more credits? Buy what you need.</h2>
+            <p className="text-[15px] text-muted-foreground">No plan needed. Buy credits anytime. They never expire.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            {COIN_ADDONS.map((addon) => (
+            {CREDIT_ADDONS.map((addon) => (
               <div key={addon.id} className="card-premium p-7 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-[#1A1535] border border-[#7C5CFC]/20 flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-7 h-7 text-[#7C5CFC]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="w-14 h-14 rounded-2xl bg-muted border border-border flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-7 h-7 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <p className="text-3xl font-bold text-gradient-violet">{addon.coins.toLocaleString()}</p>
-                <p className="text-[13px] text-[#6B6B7B] mt-1 mb-4">coins</p>
-                <p className="text-xl font-bold text-[#F5F5F7] mb-5">
+                <p className="text-3xl font-bold text-gradient-violet">{addon.credits.toLocaleString()}</p>
+                <p className="text-[13px] text-muted-foreground mt-1 mb-4">credits</p>
+                <p className="text-xl font-bold text-foreground mb-5">
                   {formatAddonPrice(addon, userCountry)}
                 </p>
                 <button
-                  onClick={() => handleBuyCoins(addon)}
-                  className="w-full py-3 rounded-lg bg-[#7C5CFC] hover:bg-[#6B4CE6] text-white font-semibold text-[14px] transition-colors disabled:opacity-50"
+                  onClick={() => handleBuyCredits(addon)}
+                  className="w-full py-3 rounded-lg bg-primary hover:bg-primary/90 text-white font-semibold text-[14px] transition-colors disabled:opacity-50"
                   disabled={paymentProcessing}
                 >
                   {paymentProcessing ? 'Please wait...' : 'Buy Now'}
@@ -367,18 +367,18 @@ export default function PricingPage() {
       </section>
 
       {/* Guarantee */}
-      <section className="py-20 bg-[#0E0E14] border-t border-[#25252F]">
+      <section className="py-20 bg-card border-t border-border">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#F5F5F7] mb-4">
+          <h2 className="text-2xl sm:text-3xl font-bold text-card-foreground mb-4">
             If the email bounces, you do not pay.
           </h2>
-          <p className="text-[15px] text-[#A8A8B8] mb-8 max-w-xl mx-auto">
-            That is our promise. Every email is tested before you spend a coin.
-            If we are wrong, you get your coins back. No questions asked.
+          <p className="text-[15px] text-muted-foreground mb-8 max-w-xl mx-auto">
+            That is our promise. Every email is tested before you spend a credit.
+            If we are wrong, you get your credits back. No questions asked.
           </p>
           <Link
             href="/guarantee"
-            className="inline-flex items-center gap-2 text-[#7C5CFC] hover:text-[#6B4CE6] font-semibold text-base transition-colors"
+            className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-semibold text-base transition-colors"
           >
             Read our full guarantee
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

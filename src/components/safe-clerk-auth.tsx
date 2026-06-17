@@ -14,16 +14,16 @@ import dynamic from 'next/dynamic'
 export const CLERK_APPEARANCE = {
   elements: {
     socialButtonsBlockButton:
-      'border border-[#E2E8F0] bg-white rounded-xl hover:bg-[#F8FAFC] dark:bg-[#1e293b] dark:border-[#334155] dark:hover:bg-[#334155]',
+      'border border-border bg-white rounded-xl hover:bg-muted dark:bg-card dark:border-border dark:hover:bg-card-foreground/10',
     socialButtonsProviderText:
-      'text-[#1f2937] font-medium dark:text-[#f1f5f9]',
+      'text-foreground font-medium dark:text-card-foreground',
     socialButtonsIconButton:
-      'border border-[#E2E8F0] bg-white dark:bg-[#1e293b] dark:border-[#334155]',
+      'border border-border bg-white dark:bg-card dark:border-border',
     formButtonPrimary:
-      'bg-[#2563EB] hover:bg-[#1D4ED8] text-white',
+      'bg-accent hover:bg-accent/90 text-white',
     formFieldInput:
-      'border-[#E2E8F0] h-11',
-    card: 'border-[#E2E8F0]',
+      'border-border h-11',
+    card: 'border-border',
   },
 } as const
 
@@ -106,7 +106,7 @@ export class ClerkErrorBoundary extends React.Component<ErrorBoundaryProps, Erro
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback || <div className="p-4 text-center text-[#64748B]">Loading...</div>
+      return this.props.fallback || <div className="p-4 text-center text-muted-foreground">Loading...</div>
     }
     return this.props.children
   }
