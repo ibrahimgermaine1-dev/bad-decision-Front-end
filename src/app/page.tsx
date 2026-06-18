@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { useAppStore } from '@/stores/app-store'
 import { fetchCreditBalance, fetchCollections } from '@/lib/api'
+import { TIERS } from '@/lib/pricing'
 
 export default function LandingPage() {
   const { isSignedIn, isLoaded, userId } = useAuth()
@@ -531,9 +532,12 @@ function GuaranteeSection() {
 // PRICING PREVIEW
 // ============================================================
 function PricingPreviewSection() {
+  const { userCountry } = useAppStore()
+  const isNigeria = userCountry === 'NG'
+
   return (
     <section className="bg-background py-24 sm:py-32">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         <div className="inline-block px-4 py-1.5 rounded-full bg-muted border border-border mb-6">
           <span className="text-[12px] text-primary font-semibold uppercase tracking-wider">Simple Pricing</span>
         </div>
@@ -542,33 +546,54 @@ function PricingPreviewSection() {
         </h2>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-12">
           You get 50 free leads the moment you sign up. No credit card needed.
-          When you want more, pick a plan that fits. Or buy credits one at a time.
-          You are never locked in.
+          When you want more, pick a plan that fits. You are never locked in.
         </p>
 
-        <div className="grid sm:grid-cols-3 gap-6 mb-12">
-          {[
-            { name: 'Free', price: '$0', credits: '50', feature: '2 search engines', popular: false },
-            { name: 'Growth', price: '$25', credits: '3,000', feature: 'All 4 engines', popular: true },
-            { name: 'Pro', price: '$35', credits: '5,000', feature: 'Everything unlocked', popular: false },
-          ].map((plan, i) => (
-            <div
-              key={i}
-              className={`card-premium p-7 text-left ${
-                plan.popular ? 'border-primary/40 glow-violet-sm' : ''
-              }`}
-            >
-              {plan.popular && (
-                <div className="inline-block px-3 py-0.5 rounded-full bg-primary text-white text-[11px] font-bold uppercase tracking-wider mb-3">
-                  Most Popular
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-12">
+          {TIERS.map((plan) => {
+            const isPopular = plan.popular
+            return (
+              <div
+                key={plan.id}
+                className={`card-premium p-6 text-left relative flex flex-col ${
+                  isPopular ? 'border-primary/40 glow-violet-sm' : ''
+                }`}
+              >
+                {isPopular && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className="rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-white uppercase tracking-wider">
+                      Most Popular
+                    </span>
+                  </div>
+                )}
+
+                <div className="text-[15px] text-foreground font-bold mb-1">{plan.name}</div>
+                <div className="text-3xl font-bold text-foreground mb-2">
+                  {plan.priceUSD === 0 ? (
+                    'Free'
+                  ) : (
+                    <>
+                      {isNigeria ? `₦${plan.priceNGN.toLocaleString()}` : `$${plan.priceUSD}`}<span className="text-base text-muted-foreground font-normal">/mo</span>
+                    </>
+                  )}
                 </div>
-              )}
-              <div className="text-[15px] text-muted-foreground font-medium mb-1">{plan.name}</div>
-              <div className="text-3xl font-bold text-foreground mb-2">{plan.price}<span className="text-base text-muted-foreground font-normal">/mo</span></div>
-              <div className="text-[14px] text-primary font-semibold mb-3">{plan.credits} credits</div>
-              <div className="text-[13px] text-muted-foreground">{plan.feature}</div>
-            </div>
-          ))}
+                <div className="text-[14px] text-primary font-semibold mb-3">{plan.credits.toLocaleString()} credits</div>
+
+                <div className="h-px bg-border my-3"></div>
+
+                <ul className="space-y-2 flex-1">
+                  {plan.features.slice(0, 4).map((feature) => (
+                    <li key={feature} className="flex items-start gap-2">
+                      <svg className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-[12px] text-muted-foreground leading-snug">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
         </div>
 
         <Link
@@ -597,7 +622,7 @@ function FAQPreviewSection() {
     },
     {
       q: 'What if I only need leads once?',
-      a: 'That is fine. You do not need a monthly plan. You can buy credits one time and use them whenever you want. Credits do not expire. Buy what you need, when you need it.',
+      a: 'That is fine. You do not need a monthly plan. Your free 50 credits let you test the app with no cost. If you want more leads later, pick a plan that fits your budget. You can upgrade, downgrade, or cancel anytime.',
     },
     {
       q: 'Can I search for any type of business?',

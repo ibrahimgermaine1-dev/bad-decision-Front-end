@@ -27,11 +27,11 @@
   --color-border-light: #b0d8d4;
   --color-border-bright: #00a8cc;
 
-  /* Text */
+  /* Text — darkened for readability on teal background */
   --color-text: #1a1a1a;
-  --color-text-secondary: #333333;
-  --color-text-muted: #555555;
-  --color-text-dim: #666666;
+  --color-text-secondary: #2a2a2a;
+  --color-text-muted: #3d3d3d;
+  --color-text-dim: #555555;
 
   /* Brand Accent — vibrant teal */
   --color-violet: #00a8cc;
@@ -59,7 +59,7 @@
   --color-secondary: #003d4d;
   --color-secondary-foreground: #f5f5f5;
   --color-muted: #f0f7f7;
-  --color-muted-foreground: #555555;
+  --color-muted-foreground: #2a2a2a;
   --color-accent: #00a8cc;
   --color-accent-foreground: #ffffff;
   --color-destructive: #c0392b;
@@ -113,6 +113,25 @@
   ::selection {
     background: var(--color-violet-glow);
     color: var(--color-text);
+  }
+
+  /* ============================================================
+     READABILITY FIX: Context-aware muted text
+     text-muted-foreground is dark (#2a2a2a) by default — good on
+     teal page background and white card-premium backgrounds.
+     But on dark teal (bg-card) sections, dark text is invisible.
+     This rule auto-switches muted text to light when inside bg-card.
+     ============================================================ */
+
+  /* Inside dark teal (bg-card) sections: muted text becomes light gray */
+  .bg-card .text-muted-foreground {
+    color: rgba(245, 245, 245, 0.75);
+  }
+
+  /* Exception: inside white card-premium (even within bg-card sections),
+     muted text stays dark for readability on white */
+  .card-premium .text-muted-foreground {
+    color: #2a2a2a;
   }
 
   /* Gradient text */

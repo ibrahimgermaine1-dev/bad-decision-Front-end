@@ -9,7 +9,7 @@ import { useState } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { useAppStore } from '@/stores/app-store'
 import { fetchCreditBalance, verifyPayment } from '@/lib/api'
-import { TIERS, CREDIT_ADDONS, type TierId, getTierById, formatAddonPrice } from '@/lib/pricing'
+import { TIERS, type TierId, getTierById } from '@/lib/pricing'
 import Script from 'next/script'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -106,79 +106,6 @@ export default function PricingPage() {
     }
   }
 
-  const handleBuyCredits = (addon: typeof CREDIT_ADDONS[0]) => {
-    if (!isSignedIn) {
-      router.push('/sign-in')
-      return
-    }
-
-    const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
-    if (!publicKey) {
-      setPaymentError('Payment is not ready yet. Please contact support.')
-      return
-    }
-
-    setPaymentProcessing(true)
-    setPaymentError('')
-
-    try {
-      if (typeof window !== 'undefined' && (window as any).PaystackPop) {
-        const handler = (window as any).PaystackPop.setup({
-          reference: crypto.randomUUID(),
-          email: user?.primaryEmailAddress?.emailAddress || '',
-          amount: addon.priceKobo,
-          publicKey,
-          currency: 'NGN',
-          metadata: {
-            user_id: userId || '',
-            credits: addon.credits,
-            type: 'credit_addon',
-            custom_fields: [
-              { display_name: 'Credits', variable_name: 'credits', value: addon.credits.toString() },
-            ],
-          },
-          callback: (response: any) => {
-            const reference = response?.reference || ''
-            if (reference) {
-              verifyPayment(reference).then((result) => {
-                if (result.verified && result.balance) {
-                  setCreditBalance({
-                    credits_balance: result.balance.credits_balance ?? 0,
-                    credits_reserved: result.balance.credits_reserved ?? 0,
-                    total_purchased: result.balance.total_purchased ?? 0,
-                  })
-                }
-                setPaymentProcessing(false)
-              }).catch(() => {
-                setTimeout(async () => {
-                  try {
-                    const balance = await fetchCreditBalance()
-                    setCreditBalance({
-                      credits_balance: balance.credits_balance ?? 0,
-                      credits_reserved: balance.credits_reserved ?? 0,
-                      total_purchased: balance.total_purchased ?? 0,
-                    })
-                  } catch {}
-                }, 3000)
-                setPaymentProcessing(false)
-              })
-            }
-          },
-          onClose: () => {
-            setPaymentProcessing(false)
-          },
-        })
-        handler.openIframe()
-      } else {
-        setPaymentError('Payment is still loading. Try again in a moment.')
-        setPaymentProcessing(false)
-      }
-    } catch (err) {
-      setPaymentError('Payment failed. Please try again.')
-      setPaymentProcessing(false)
-    }
-  }
-
   const allTiers = TIERS
 
   return (
@@ -195,9 +122,8 @@ export default function PricingPage() {
             Start free. <br /><span className="text-gradient-violet">Pay only when it works.</span>
           </h1>
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-6">
-            You get 50 free leads the moment you sign up. No credit card needed.
-            When you want more, pick a plan that fits. Or buy credits one at a time.
-            You are never locked in.
+            You get 50 free credits the moment you sign up. No credit card needed.
+            When you want more, pick a plan that fits. You are never locked in.
           </p>
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-card border border-border text-[13px]">
             <span className="text-muted-foreground">Currency:</span>
@@ -326,42 +252,6 @@ export default function PricingPage() {
                 We do not believe in trapping people. We believe in earning their stay.
               </p>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Credit Addons */}
-      <section className="py-20">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <div className="inline-block px-4 py-1.5 rounded-full bg-muted border border-border mb-4">
-              <span className="text-[12px] text-primary font-semibold uppercase tracking-wider">Credit Top-Ups</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-3">Need more credits? Buy what you need.</h2>
-            <p className="text-[15px] text-muted-foreground">No plan needed. Buy credits anytime. They never expire.</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            {CREDIT_ADDONS.map((addon) => (
-              <div key={addon.id} className="card-premium p-7 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-muted border border-border flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-7 h-7 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <p className="text-3xl font-bold text-gradient-violet">{addon.credits.toLocaleString()}</p>
-                <p className="text-[13px] text-muted-foreground mt-1 mb-4">credits</p>
-                <p className="text-xl font-bold text-foreground mb-5">
-                  {formatAddonPrice(addon, userCountry)}
-                </p>
-                <button
-                  onClick={() => handleBuyCredits(addon)}
-                  className="w-full py-3 rounded-lg bg-primary hover:bg-primary/90 text-white font-semibold text-[14px] transition-colors disabled:opacity-50"
-                  disabled={paymentProcessing}
-                >
-                  {paymentProcessing ? 'Please wait...' : 'Buy Now'}
-                </button>
-              </div>
-            ))}
           </div>
         </div>
       </section>
