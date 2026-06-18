@@ -81,17 +81,38 @@ export async function GET(req: NextRequest) {
 
       if (rpcRes.ok) {
         console.log('[PROXY /credits] Auto-created user with 50 free credits via handle_new_user RPC')
+        // Re-fetch the balance to return the ACTUAL database value
+        const verifyRes = await fetch(
+          `${supabaseUrl}/rest/v1/credit_balances?select=credits_balance,credits_reserved,total_purchased&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+          { headers: sbHeaders }
+        )
+        if (verifyRes.ok) {
+          const verifyRows = await verifyRes.json()
+          if (verifyRows && verifyRows.length > 0) {
+            const v = verifyRows[0]
+            return NextResponse.json({
+              credits_balance: v.credits_balance ?? 0,
+              credits_reserved: v.credits_reserved ?? 0,
+              total_purchased: v.total_purchased ?? 0,
+            })
+          }
+        }
+        // If re-fetch fails, return 50 (the RPC should have set it)
+        return NextResponse.json({
+          credits_balance: 50,
+          credits_reserved: 0,
+          total_purchased: 50,
+        })
       } else {
         const err = await rpcRes.json().catch(() => ({}))
         console.error('[PROXY /credits] handle_new_user RPC failed:', err)
+        // RPC failed — return 0 (do NOT fake 50 credits)
+        return NextResponse.json({
+          credits_balance: 0,
+          credits_reserved: 0,
+          total_purchased: 0,
+        })
       }
-
-      // Return the 50 credits (whether the RPC succeeded or not, the user should see 50)
-      return NextResponse.json({
-        credits_balance: 50,
-        credits_reserved: 0,
-        total_purchased: 50,
-      })
     }
 
     // 3. Return the existing balance
