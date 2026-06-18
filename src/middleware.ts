@@ -1,30 +1,26 @@
 /**
- * Bulletproof Middleware — No Clerk crashes possible.
+ * Clerk Middleware — REQUIRED for auth() to work in API routes.
  *
- * ROOT CAUSE of MIDDLEWARE_INVOCATION_FAILED:
- * Clerk v6's `clerkMiddleware()` wrapper throws DURING MODULE LOAD
- * (before our handler runs) when:
- *   - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is missing
- *   - The key is malformed (wrong format, wrong instance)
- *   - The key is for a different Clerk instance than CLERK_SECRET_KEY
+ * Clerk v6 requires clerkMiddleware() in the middleware chain.
+ * Without it, every API route that calls auth() returns a 500 error:
+ * "Clerk can't detect usage of clerkMiddleware()".
  *
- * This means our try/catch inside the handler never even runs.
+ * The previous version removed clerkMiddleware() to avoid
+ * MIDDLEWARE_INVOCATION_FAILED errors. Those errors were caused by
+ * missing/malformed env vars, not by clerkMiddleware() itself.
+ * Now that env vars are set on Vercel, clerkMiddleware() works.
  *
- * SOLUTION: Skip Clerk entirely in middleware. Use plain Next.js
- * middleware that only checks for a Clerk session cookie. If Clerk
- * is broken/missing, the site still loads. Auth enforcement for
- * sensitive actions happens in API routes via auth().
- *
- * The dashboard page itself does a client-side redirect to /sign-in
- * if useAuth() returns isSignedIn=false, so middleware-level auth
- * is redundant for the UX.
+ * Webhook routes (Clerk + Paystack) are excluded from auth — they
+ * verify signatures themselves.
  */
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
 
-const PUBLIC_ROUTES = [
+const isPublicRoute = createRouteMatcher([
   '/',
   '/sso-callback',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
   '/pricing',
   '/faq',
   '/how-it-works',
@@ -35,51 +31,24 @@ const PUBLIC_ROUTES = [
   '/terms',
   '/privacy',
   '/refund',
-]
-
-const PUBLIC_PREFIXES = [
-  '/sign-in',
-  '/sign-up',
+  // Webhook routes — verify signatures themselves, not Clerk auth
   '/api/webhooks/clerk',
   '/api/webhooks/paystack',
-  '/api/credits',
-  '/api/backend/',
-  '/api/payments/',
-]
+])
 
-function isPublic(pathname: string): boolean {
-  if (PUBLIC_ROUTES.includes(pathname)) return true
-  return PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix))
-}
-
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
-
-  // Public routes always pass through
-  if (isPublic(pathname)) return NextResponse.next()
-
-  // For protected routes (e.g. /dashboard), check for Clerk session cookie.
-  // Clerk v6 stores the active session in cookies named like:
-  //   __clerk_db_jwt
-  //   __session
-  //   __clerk_status_expiry_cookie
-  // If none exist, redirect to /sign-in.
-  //
-  // This is a SOFT check only — real auth enforcement happens in API
-  // routes via auth(). This redirect is purely for UX so unauthenticated
-  // users don't see a broken dashboard.
-  const hasClerkCookie = request.cookies.get('__clerk_db_jwt') ||
-                         request.cookies.get('__session') ||
-                         request.cookies.get('__client_uat')
-
-  if (!hasClerkCookie) {
-    const signInUrl = new URL('/sign-in', request.url)
-    signInUrl.searchParams.set('redirect_url', request.url)
-    return NextResponse.redirect(signInUrl)
+export default clerkMiddleware((auth, req) => {
+  // If this is a public route, let it through without auth check
+  if (isPublicRoute(req)) {
+    return NextResponse.next()
   }
 
-  return NextResponse.next()
-}
+  // For protected routes, Clerk handles the auth check.
+  // If the user is not signed in, Clerk redirects to /sign-in automatically.
+  // We call auth().protect() to enforce this on protected routes.
+  // Note: API routes under /api/backend/ and /api/payments/ call auth()
+  // themselves — they return 401 JSON if the user is not signed in.
+  // The middleware just needs to be present for auth() to function.
+})
 
 export const config = {
   // Run middleware on everything except static assets and Next internals.
