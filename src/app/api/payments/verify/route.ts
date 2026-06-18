@@ -34,13 +34,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { reference } = await req.json()
-    if (!reference) {
+    const { reference: reqReference } = await req.json()
+    if (!reqReference) {
       return NextResponse.json({ error: 'Reference is required' }, { status: 400 })
     }
 
     // Validate reference format (Paystack references are typically alphanumeric + hyphens)
-    if (!/^[a-zA-Z0-9_-]+$/.test(reference)) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(reqReference)) {
       return NextResponse.json({ error: 'Invalid reference format' }, { status: 400 })
     }
 
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify with Paystack
-    const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+    const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reqReference)}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${secretKey}`,
@@ -78,12 +78,8 @@ export async function POST(req: NextRequest) {
     // Payment verified successfully
     const amount = verifyData.data.amount
     const currency = verifyData.data.currency || 'NGN'
+    const reference = verifyData.data.reference || reqReference
 
-    // Wait a moment for webhook to process, then fetch balance
-    // The webhook handles credit addition — this endpoint just confirms
-    await new Promise(resolve => setTimeout(resolve, 1500))
-
-    // Fetch updated balance from Supabase
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -96,6 +92,92 @@ export async function POST(req: NextRequest) {
         message: 'Payment verified but balance fetch unavailable',
       })
     }
+
+    const sbHeaders: Record<string, string> = {
+      'apikey': serviceKey,
+      'Authorization': `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+    }
+
+    // DETERMINE CREDITS TO ADD based on metadata (same logic as webhook)
+    const metadata = verifyData.data.metadata || {}
+    const isCreditAddon = metadata.type === 'credit_addon'
+    const metadataPlan = metadata.plan as string | undefined
+    const metadataCredits = metadata.credits as number | undefined
+    const metadataUserId = metadata.user_id as string | undefined
+
+    let creditsToAdd = 0
+    let description = 'Credit purchase'
+    let purchasedTier: string | null = null
+
+    // Use the authenticated userId (most reliable) or fall back to metadata
+    const effectiveUserId = userId || metadataUserId
+
+    if (isCreditAddon) {
+      creditsToAdd = metadataCredits || 0
+      description = `${creditsToAdd} credit top-up`
+    } else if (metadataPlan) {
+      purchasedTier = metadataPlan
+      const tierCredits: Record<string, number> = { starter: 1500, growth: 3000, pro: 5000 }
+      creditsToAdd = metadataCredits || tierCredits[metadataPlan] || 0
+      description = `${metadataPlan.charAt(0).toUpperCase() + metadataPlan.slice(1)} tier upgrade - ${creditsToAdd} credits`
+    } else {
+      // Fallback: amount-based mapping
+      if (currency === 'NGN') {
+        const ngn = amount / 100
+        if (ngn >= 28000) { purchasedTier = 'pro'; creditsToAdd = 5000 }
+        else if (ngn >= 20000) { purchasedTier = 'growth'; creditsToAdd = 3000 }
+        else if (ngn >= 12000) { purchasedTier = 'starter'; creditsToAdd = 1500 }
+        else if (ngn >= 4000) { creditsToAdd = 500 }
+        else creditsToAdd = Math.round(ngn / 8)
+      } else {
+        const usd = amount / 100
+        if (usd >= 35) { purchasedTier = 'pro'; creditsToAdd = 5000 }
+        else if (usd >= 25) { purchasedTier = 'growth'; creditsToAdd = 3000 }
+        else if (usd >= 15) { purchasedTier = 'starter'; creditsToAdd = 1500 }
+        else if (usd >= 5) { creditsToAdd = 500 }
+        else creditsToAdd = Math.round(usd * 100)
+      }
+      description = purchasedTier ? `${purchasedTier} tier upgrade - ${creditsToAdd} credits` : `${creditsToAdd} credit top-up`
+    }
+
+    // ADD CREDITS DIRECTLY via add_credits RPC (idempotent — safe to call
+    // even if the webhook already processed this payment)
+    if (creditsToAdd > 0 && effectiveUserId) {
+      console.log(`[PAYMENT_VERIFY] Adding ${creditsToAdd} credits to user ${effectiveUserId} (ref: ${reference})`)
+      const addCreditsRes = await fetch(`${supabaseUrl}/rest/v1/rpc/add_credits`, {
+        method: 'POST',
+        headers: sbHeaders,
+        body: JSON.stringify({
+          p_user_id: effectiveUserId,
+          p_amount: creditsToAdd,
+          p_transaction_type: 'purchase',
+          p_description: description,
+          p_reference_id: reference,
+        }),
+      })
+
+      if (addCreditsRes.ok) {
+        console.log(`[PAYMENT_VERIFY] Credits added successfully via add_credits RPC`)
+      } else {
+        const err = await addCreditsRes.json().catch(() => ({}))
+        console.error('[PAYMENT_VERIFY] add_credits RPC failed:', err)
+        // The webhook may have already processed this — that's OK (idempotent)
+      }
+
+      // Upgrade tier if applicable
+      if (purchasedTier) {
+        await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(effectiveUserId)}`, {
+          method: 'PATCH',
+          headers: sbHeaders,
+          body: JSON.stringify({ tier: purchasedTier }),
+        })
+        console.log(`[PAYMENT_VERIFY] Upgraded user to ${purchasedTier} tier`)
+      }
+    }
+
+    // Wait a moment for the database to commit, then fetch balance
+    await new Promise(resolve => setTimeout(resolve, 500))
 
     const balanceRes = await fetch(
       `${supabaseUrl}/rest/v1/credit_balances?select=credits_balance,credits_reserved,total_purchased&user_id=eq.${encodeURIComponent(userId)}&limit=1`,

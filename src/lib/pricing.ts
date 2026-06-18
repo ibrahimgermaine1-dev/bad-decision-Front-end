@@ -55,14 +55,14 @@ export const TIERS: PricingTier[] = [
     enginesCount: 1,
     searchesPerDay: 3,
     planType: 'free',
-    engines: ['ads_intent'],
+    engines: ['smb_maps'],
     features: [
       '50 credits to get started',
-      '1 search engine (Ads Intelligence)',
+      '1 search engine (Local Businesses)',
       '3 searches per day',
       '1 credit per lead',
       'Basic email verification (Gate 1)',
-      'Company name + website',
+      'Company name + address',
     ],
   },
   {
