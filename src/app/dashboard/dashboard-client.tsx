@@ -193,7 +193,12 @@ export function DashboardShell() {
   const handleBuyCredits = (addon: typeof CREDIT_ADDONS[0]) => {
     const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
     if (!publicKey) {
-      setPaymentError('Payment is not ready yet. Please contact support.')
+      setPaymentError('Paystack public key is not configured. Go to Vercel → Settings → Environment Variables and set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY to your Paystack public key (pk_test_... or pk_live_...).')
+      return
+    }
+
+    if (!user?.primaryEmailAddress?.emailAddress) {
+      setPaymentError('No email address found. Please sign out and sign back in.')
       return
     }
 
@@ -202,9 +207,11 @@ export function DashboardShell() {
 
     try {
       if (typeof window !== 'undefined' && (window as any).PaystackPop) {
+        const reference = crypto.randomUUID()
+        console.log('[Payment] Starting Paystack payment:', { reference, amount: addon.priceKobo, email: user.primaryEmailAddress.emailAddress })
         const handler = (window as any).PaystackPop.setup({
-          reference: crypto.randomUUID(),
-          email: user?.primaryEmailAddress?.emailAddress || '',
+          reference,
+          email: user.primaryEmailAddress.emailAddress,
           amount: addon.priceKobo,
           publicKey,
           currency: 'NGN',
