@@ -128,9 +128,7 @@ export async function POST(req: NextRequest) {
     let description = 'Credit purchase'
 
     // Check metadata to determine if this is a credit top-up or a tier upgrade
-    // The dashboard sends type: 'credit_addon' for credit top-ups
-    // The pricing page sends plan: tier_id for tier upgrades
-    const metadata = data.metadata || {}
+    // (metadata variable was already extracted above for user_id lookup)
     const isCreditAddon = metadata.type === 'credit_addon'
     const metadataPlan = metadata.plan as string | undefined
     const metadataCredits = metadata.credits as number | undefined
