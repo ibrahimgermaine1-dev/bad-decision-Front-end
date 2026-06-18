@@ -190,7 +190,7 @@ export function DashboardShell() {
   }, [selectedEngine, searchQuery, selectedCountry, selectedState, loadBalance])
 
   // ===== HANDLE PAYMENT (Paystack) =====
-  const handleBuyCredits = (addon: typeof CREDIT_ADDONS[0]) => {
+  const handleBuyCredits = async (addon: typeof CREDIT_ADDONS[0]) => {
     const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
     if (!publicKey) {
       setPaymentError('Paystack public key is not configured. Go to Vercel → Settings → Environment Variables and set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY to your Paystack public key (pk_test_... or pk_live_...).')
@@ -206,6 +206,27 @@ export function DashboardShell() {
     setPaymentError('')
 
     try {
+      // Dynamically load Paystack script if not already loaded
+      if (typeof window !== 'undefined' && !(window as any).PaystackPop) {
+        console.log('[Payment] Paystack script not loaded, loading dynamically...')
+        await new Promise<void>((resolve, reject) => {
+          const existingScript = document.querySelector('script[src="https://js.paystack.co/v2/inline.js"]')
+          if (existingScript) {
+            existingScript.addEventListener('load', () => resolve())
+            existingScript.addEventListener('error', () => reject(new Error('Failed to load Paystack script')))
+            return
+          }
+          const script = document.createElement('script')
+          script.src = 'https://js.paystack.co/v2/inline.js'
+          script.onload = () => resolve()
+          script.onerror = () => reject(new Error('Failed to load Paystack script'))
+          document.head.appendChild(script)
+        })
+
+        // Wait a moment for the script to initialize
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+
       if (typeof window !== 'undefined' && (window as any).PaystackPop) {
         const reference = crypto.randomUUID()
         console.log('[Payment] Starting Paystack payment:', { reference, amount: addon.priceKobo, email: user.primaryEmailAddress.emailAddress })
@@ -221,37 +242,47 @@ export function DashboardShell() {
             type: 'credit_addon',
           },
           callback: (response: any) => {
-            const reference = response?.reference || ''
-            if (reference) {
-              verifyPayment(reference).then((result) => {
+            const ref = response?.reference || ''
+            console.log('[Payment] Paystack callback received:', { ref, response })
+            if (ref) {
+              verifyPayment(ref).then((result) => {
+                console.log('[Payment] Verify result:', result)
                 if (result.verified && result.balance) {
                   setCreditBalance({
                     credits_balance: result.balance.credits_balance ?? 0,
                     credits_reserved: result.balance.credits_reserved ?? 0,
                     total_purchased: result.balance.total_purchased ?? 0,
                   })
+                } else {
+                  setPaymentError('Payment was processed but verification failed. Your credits will be added within a minute.')
+                  setTimeout(() => loadBalance(), 5000)
                 }
                 setPaymentProcessing(false)
-              }).catch(() => {
-                setTimeout(() => loadBalance(), 2000)
+              }).catch((err) => {
+                console.error('[Payment] Verify error:', err)
+                setPaymentError('Payment was processed. Your credits will be added within a minute.')
+                setTimeout(() => loadBalance(), 5000)
                 setPaymentProcessing(false)
               })
             } else {
-              setTimeout(() => loadBalance(), 2000)
+              setPaymentError('Payment completed but no reference was returned. Please contact support.')
+              setTimeout(() => loadBalance(), 5000)
               setPaymentProcessing(false)
             }
           },
           onClose: () => {
+            console.log('[Payment] Paystack popup closed')
             setPaymentProcessing(false)
           },
         })
         handler.openIframe()
       } else {
-        setPaymentError('Payment is still loading. Try again in a moment.')
+        setPaymentError('Could not load Paystack payment. Please check your internet connection and try again.')
         setPaymentProcessing(false)
       }
-    } catch (err) {
-      setPaymentError('Payment failed. Please try again.')
+    } catch (err: any) {
+      console.error('[Payment] Error:', err)
+      setPaymentError(err.message || 'Payment failed. Please try again.')
       setPaymentProcessing(false)
     }
   }
