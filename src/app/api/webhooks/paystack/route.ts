@@ -100,22 +100,48 @@ export async function POST(req: NextRequest) {
     let transactionType = 'purchase'
     let description = 'Credit purchase'
 
-    if (currency === 'NGN') {
-      const ngn = amount / 100
-      if (ngn >= 28000) { purchasedTier = 'pro'; creditsToAdd = 5000; description = 'Pro tier upgrade - 5000 credits' }
-      else if (ngn >= 20000) { purchasedTier = 'growth'; creditsToAdd = 3000; description = 'Growth tier upgrade - 3000 credits' }
-      else if (ngn >= 12000) { purchasedTier = 'starter'; creditsToAdd = 1500; description = 'Starter tier upgrade - 1500 credits' }
-      else if (ngn >= 5000) { creditsToAdd = 3000; description = '3000 credit top-up' }
-      else if (ngn >= 4000) { creditsToAdd = 500; description = '500 credit top-up' }
-      else creditsToAdd = Math.round(ngn / 8)
+    // Check metadata to determine if this is a credit top-up or a tier upgrade
+    // The dashboard sends type: 'credit_addon' for credit top-ups
+    // The pricing page sends plan: tier_id for tier upgrades
+    const metadata = data.metadata || {}
+    const isCreditAddon = metadata.type === 'credit_addon'
+    const metadataPlan = metadata.plan as string | undefined
+    const metadataCredits = metadata.credits as number | undefined
+
+    if (isCreditAddon) {
+      // Credit top-up — use the credits amount from metadata (trusted because
+      // the frontend sets it based on the selected addon package)
+      creditsToAdd = metadataCredits || 0
+      description = `${creditsToAdd} credit top-up`
+      // No tier change for credit top-ups
+    } else if (metadataPlan) {
+      // Tier upgrade — use the plan from metadata
+      purchasedTier = metadataPlan
+      const tierCredits: Record<string, number> = {
+        starter: 1500,
+        growth: 3000,
+        pro: 5000,
+      }
+      creditsToAdd = metadataCredits || tierCredits[metadataPlan] || 0
+      description = `${metadataPlan.charAt(0).toUpperCase() + metadataPlan.slice(1)} tier upgrade - ${creditsToAdd} credits`
     } else {
-      const usd = amount / 100
-      if (usd >= 35) { purchasedTier = 'pro'; creditsToAdd = 5000; description = 'Pro tier upgrade - 5000 credits' }
-      else if (usd >= 25) { purchasedTier = 'growth'; creditsToAdd = 3000; description = 'Growth tier upgrade - 3000 credits' }
-      else if (usd >= 15) { purchasedTier = 'starter'; creditsToAdd = 1500; description = 'Starter tier upgrade - 1500 credits' }
-      else if (usd >= 25) { creditsToAdd = 3000; description = '3000 credit top-up' }
-      else if (usd >= 5) { creditsToAdd = 500; description = '500 credit top-up' }
-      else creditsToAdd = Math.round(usd * 100)
+      // Fallback: no metadata — use amount-based mapping (for manual payments
+      // or payments made outside the app)
+      if (currency === 'NGN') {
+        const ngn = amount / 100
+        if (ngn >= 28000) { purchasedTier = 'pro'; creditsToAdd = 5000; description = 'Pro tier upgrade - 5000 credits' }
+        else if (ngn >= 20000) { purchasedTier = 'growth'; creditsToAdd = 3000; description = 'Growth tier upgrade - 3000 credits' }
+        else if (ngn >= 12000) { purchasedTier = 'starter'; creditsToAdd = 1500; description = 'Starter tier upgrade - 1500 credits' }
+        else if (ngn >= 4000) { creditsToAdd = 500; description = '500 credit top-up' }
+        else creditsToAdd = Math.round(ngn / 8)
+      } else {
+        const usd = amount / 100
+        if (usd >= 35) { purchasedTier = 'pro'; creditsToAdd = 5000; description = 'Pro tier upgrade - 5000 credits' }
+        else if (usd >= 25) { purchasedTier = 'growth'; creditsToAdd = 3000; description = 'Growth tier upgrade - 3000 credits' }
+        else if (usd >= 15) { purchasedTier = 'starter'; creditsToAdd = 1500; description = 'Starter tier upgrade - 1500 credits' }
+        else if (usd >= 5) { creditsToAdd = 500; description = '500 credit top-up' }
+        else creditsToAdd = Math.round(usd * 100)
+      }
     }
 
     // Add credits via add_credits RPC (IDEMPOTENT — checks reference_id for duplicates)
