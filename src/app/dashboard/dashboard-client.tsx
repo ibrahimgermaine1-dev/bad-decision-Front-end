@@ -132,11 +132,19 @@ export function DashboardShell() {
     setCurrentStep('Starting search...')
 
     try {
+      // Reserve credits for this search. We send the user's full balance
+      // (or a reasonable max). The backend reserves it all, then commits
+      // only what's actually spent (leads_found × credits_per_lead) and
+      // refunds the rest. This way the search works as long as the user
+      // has at least 1 credit.
+      const creditsToReserve = Math.min(Math.max(creditBalance.credits_balance, 1), 100)
+
       const searchResult = await startSearch(
         selectedEngine,
         searchQuery.trim(),
         selectedCountry,
-        selectedState
+        selectedState,
+        creditsToReserve
       )
 
       if (!searchResult.task_id) {
@@ -255,7 +263,7 @@ export function DashboardShell() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground flex">
       <Script src="https://js.paystack.co/v2/inline.js" />
 
       {/* ===== MOBILE HEADER ===== */}
@@ -296,37 +304,37 @@ export function DashboardShell() {
 
         <aside className={`
           fixed lg:sticky top-0 left-0 z-50 lg:z-30
-          h-screen w-72 flex-shrink-0
+          h-screen w-64 flex-shrink-0
           bg-card border-r border-border
           flex flex-col
           transition-transform duration-300
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
           {/* Logo */}
-          <div className="h-16 flex items-center gap-2.5 px-5 border-b border-border">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
-              <span className="text-white font-bold text-sm">BD</span>
+          <div className="h-14 flex items-center gap-2.5 px-4 border-b border-border">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
+              <span className="text-white font-bold text-xs">BD</span>
             </div>
             <div>
-              <div className="font-bold text-[15px] text-card-foreground">Bad Decision</div>
-              <div className="text-[10px] text-card-foreground/60 uppercase tracking-wide">Lead Intelligence</div>
+              <div className="font-bold text-[14px] text-card-foreground">Bad Decision</div>
+              <div className="text-[9px] text-card-foreground/60 uppercase tracking-wide">Lead Intelligence</div>
             </div>
           </div>
 
           {/* Credit Balance Card */}
-          <div className="p-4">
-            <div className="rounded-xl bg-card-foreground/5 border border-primary/20 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-card-foreground/70 uppercase tracking-wide font-medium">Credits Remaining</span>
-                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="p-3">
+            <div className="rounded-xl bg-card-foreground/5 border border-primary/20 p-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] text-card-foreground/70 uppercase tracking-wide font-medium">Credits Remaining</span>
+                <svg className="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                 </svg>
               </div>
-              <div className="text-3xl font-bold text-card-foreground">{creditBalance.credits_balance}</div>
-              <div className="text-[12px] text-card-foreground/60 mt-1">{creditBalance.credits_reserved} reserved</div>
+              <div className="text-2xl font-bold text-card-foreground">{creditBalance.credits_balance}</div>
+              <div className="text-[11px] text-card-foreground/60 mt-0.5">{creditBalance.credits_reserved} reserved</div>
               <button
                 onClick={() => { setActiveView('credits'); setSidebarOpen(false) }}
-                className="w-full mt-3 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-[13px] font-semibold transition-colors"
+                className="w-full mt-2.5 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[12px] font-semibold transition-colors"
               >
                 Get More Credits
               </button>
@@ -334,7 +342,7 @@ export function DashboardShell() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+          <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
             <NavItem
               icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
               label="Search"
@@ -363,23 +371,23 @@ export function DashboardShell() {
           </nav>
 
           {/* User Section */}
-          <div className="p-3 border-t border-border">
-            <div className="flex items-center gap-3 px-3 py-2 mb-2">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-sm">
+          <div className="p-2 border-t border-border">
+            <div className="flex items-center gap-2.5 px-2.5 py-1.5 mb-1.5">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-xs">
                   {user?.firstName?.charAt(0) || user?.emailAddresses?.[0]?.emailAddress?.charAt(0)?.toUpperCase() || '?'}
                 </span>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-semibold text-card-foreground truncate">
+                <div className="text-[12px] font-semibold text-card-foreground truncate">
                   {user?.firstName || user?.fullName || 'Account'}
                 </div>
-                <div className="text-[11px] text-card-foreground/60 uppercase tracking-wide">{tier} plan</div>
+                <div className="text-[10px] text-card-foreground/60 uppercase tracking-wide">{tier} plan</div>
               </div>
             </div>
             <button
               onClick={handleSignOut}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-destructive hover:bg-destructive/10 text-[13px] font-medium transition-colors"
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-destructive hover:bg-destructive/10 text-[12px] font-medium transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -391,8 +399,8 @@ export function DashboardShell() {
       </>
 
       {/* ===== MAIN CONTENT ===== */}
-      <main className="flex-1 lg:ml-0 pt-14 lg:pt-0">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main className="flex-1 min-w-0 pt-14 lg:pt-0">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           {activeView === 'search' && (
             <SearchView
               selectedEngine={selectedEngine}

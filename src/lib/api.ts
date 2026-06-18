@@ -45,11 +45,11 @@ export interface CreditBalanceResponse {
  * Start a search task on the backend.
  * The proxy route adds user_id and auth headers automatically.
  */
-export async function startSearch(engine: EngineType, query: string, country?: string, stateRegion?: string): Promise<SearchResponse> {
+export async function startSearch(engine: EngineType, query: string, country?: string, stateRegion?: string, creditsReserved?: number): Promise<SearchResponse> {
   const res = await fetch('/api/backend/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ engine, query, country, state_region: stateRegion }),
+    body: JSON.stringify({ engine, query, country, state_region: stateRegion, credits_reserved: creditsReserved }),
   })
 
   const data = await res.json()
