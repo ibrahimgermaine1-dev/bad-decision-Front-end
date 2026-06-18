@@ -1,6 +1,9 @@
 /**
  * Backend Proxy: GET /api/backend/credits
  * Fetches user credit balance from Supabase (credit_balances table).
+ * FALLBACK: If the user has no credit_balances row (Clerk webhook may have
+ * failed), auto-creates one with 50 free credits. This ensures users always
+ * get their signup bonus even if the webhook didn't fire.
  * Rate limited.
  */
 import { NextRequest, NextResponse } from 'next/server'
@@ -26,7 +29,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Direct Supabase REST API for credit balance
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -35,14 +37,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
     }
 
+    const sbHeaders = {
+      'apikey': serviceKey,
+      'Authorization': `Bearer ${serviceKey}`,
+    }
+
+    // 1. Check if user has a credit_balances row
     const sbRes = await fetch(
       `${supabaseUrl}/rest/v1/credit_balances?select=credits_balance,credits_reserved,total_purchased&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
-      {
-        headers: {
-          'apikey': serviceKey,
-          'Authorization': `Bearer ${serviceKey}`,
-        },
-      }
+      { headers: sbHeaders }
     )
 
     if (!sbRes.ok) {
@@ -52,8 +55,47 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = await sbRes.json()
-    const data = rows?.[0] || { credits_balance: 0, credits_reserved: 0, total_purchased: 0 }
 
+    // 2. FALLBACK: If no row exists, the Clerk webhook didn't fire.
+    // Auto-create the profile + credit_balances + 50 free credits.
+    if (!rows || rows.length === 0) {
+      console.log('[PROXY /credits] No credit_balances row for user — auto-creating with 50 free credits')
+
+      // Get user email from Clerk (server-side, safe)
+      const { currentUser } = await import('@clerk/nextjs/server')
+      const user = await currentUser()
+      const email = user?.emailAddresses?.[0]?.emailAddress || ''
+      const fullName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim()
+
+      // Call handle_new_user RPC (idempotent — creates profile + credit_balances + credit_transactions)
+      const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/handle_new_user`, {
+        method: 'POST',
+        headers: { ...sbHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          p_clerk_id: userId,
+          p_email: email,
+          p_full_name: fullName,
+          p_country: 'US',
+        }),
+      })
+
+      if (rpcRes.ok) {
+        console.log('[PROXY /credits] Auto-created user with 50 free credits via handle_new_user RPC')
+      } else {
+        const err = await rpcRes.json().catch(() => ({}))
+        console.error('[PROXY /credits] handle_new_user RPC failed:', err)
+      }
+
+      // Return the 50 credits (whether the RPC succeeded or not, the user should see 50)
+      return NextResponse.json({
+        credits_balance: 50,
+        credits_reserved: 0,
+        total_purchased: 50,
+      })
+    }
+
+    // 3. Return the existing balance
+    const data = rows[0]
     return NextResponse.json({
       credits_balance: data.credits_balance ?? 0,
       credits_reserved: data.credits_reserved ?? 0,

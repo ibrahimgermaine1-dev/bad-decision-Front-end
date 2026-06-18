@@ -74,7 +74,18 @@ export async function POST(req: NextRequest) {
       }),
     })
 
-    const data = await res.json()
+    // Handle non-JSON responses gracefully (backend may return plain text errors)
+    const responseText = await res.text()
+    let data: any
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      console.error('[PROXY /search] Backend returned non-JSON:', responseText)
+      return NextResponse.json(
+        { error: 'The search service is starting up. Please wait 30 seconds and try again.', detail: responseText.substring(0, 200) },
+        { status: 503 }
+      )
+    }
 
     if (!res.ok) {
       console.error('[PROXY /search] Backend returned error:', data)
@@ -92,6 +103,9 @@ export async function POST(req: NextRequest) {
     }, { status: 200 })
   } catch (error: any) {
     console.error('[PROXY /search] Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(
+      { error: error.message || 'Search failed. Please try again.' },
+      { status: 500 }
+    )
   }
 }

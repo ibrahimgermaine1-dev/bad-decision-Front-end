@@ -249,8 +249,15 @@ export function DashboardShell() {
     }
   }
 
-  const handleSignOut = () => {
-    signOut(() => router.push('/'))
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      router.push('/')
+    } catch (err) {
+      console.error('Sign out error:', err)
+      // Force redirect even if signOut fails
+      window.location.href = '/'
+    }
   }
 
   // ===== LOADING STATE =====
