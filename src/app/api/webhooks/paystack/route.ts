@@ -84,17 +84,44 @@ export async function POST(req: NextRequest) {
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 
-    // Find user by email
-    const findRes = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?select=id,tier&email=eq.${encodeURIComponent(userEmail)}&limit=1`,
-      { headers }
-    )
-    const profiles = await findRes.json()
-    if (!findRes.ok || !profiles || profiles.length === 0) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    // Find user — try metadata user_id first, then fall back to email lookup
+    const metadata = data.metadata || {}
+    const metadataUserId = metadata.user_id as string | undefined
+    let userId: string | null = null
+    let userTier: string = 'free'
+
+    if (metadataUserId) {
+      // Look up by Clerk user_id (most reliable — matches the authenticated user)
+      const findByIdRes = await fetch(
+        `${supabaseUrl}/rest/v1/profiles?select=id,tier&id=eq.${encodeURIComponent(metadataUserId)}&limit=1`,
+        { headers }
+      )
+      if (findByIdRes.ok) {
+        const profilesById = await findByIdRes.json()
+        if (profilesById && profilesById.length > 0) {
+          userId = profilesById[0].id
+          userTier = profilesById[0].tier || 'free'
+        }
+      }
     }
 
-    const userId = profiles[0].id
+    if (!userId) {
+      // Fall back to email lookup
+      const findRes = await fetch(
+        `${supabaseUrl}/rest/v1/profiles?select=id,tier&email=eq.${encodeURIComponent(userEmail)}&limit=1`,
+        { headers }
+      )
+      const profiles = await findRes.json()
+      if (findRes.ok && profiles && profiles.length > 0) {
+        userId = profiles[0].id
+        userTier = profiles[0].tier || 'free'
+      }
+    }
+
+    if (!userId) {
+      console.error(`[PAYSTACK_WEBHOOK] User not found for email ${userEmail} and metadata user_id ${metadataUserId}`)
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
     let purchasedTier: string | null = null
     let creditsToAdd = 0
     let transactionType = 'purchase'
