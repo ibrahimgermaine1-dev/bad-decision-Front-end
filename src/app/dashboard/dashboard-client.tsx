@@ -23,7 +23,18 @@ import { CREDIT_ADDONS, type TierId, formatAddonPrice, isEngineAvailable } from 
 import { LocationSelector } from '@/components/location-selector'
 import { exportLeadsToCsv, downloadCsv } from '@/lib/csv-shield'
 
-type DashView = 'search' | 'collections' | 'credits' | 'support'
+type DashView = 'search' | 'collections' | 'credits' | 'support' | 'settings'
+
+// Copywriting styles offered for personalized outreach messages.
+// IDs must match the backend regex in main.py (UpdateSettingsRequest.copywriting_style).
+const COPYWRITING_STYLES: Array<{ id: string; label: string; desc: string }> = [
+  { id: 'dan_kennedy',    label: 'Direct & Bold',           desc: 'Dan Kennedy' },
+  { id: 'donald_miller',  label: 'Story-Driven',            desc: 'Donald Miller' },
+  { id: 'ray_edwards',    label: 'Warm & Conversational',   desc: 'Ray Edwards' },
+  { id: 'david_ogilvy',   label: 'Punchy & Witty',          desc: 'David Ogilvy' },
+  { id: 'jay_abraham',    label: 'Educational',             desc: 'Jay Abraham' },
+  { id: 'gary_halbert',   label: 'Curiosity-Driven',        desc: 'Gary Halbert' },
+]
 
 const ENGINE_CARDS = [
   {
@@ -84,6 +95,16 @@ export function DashboardShell() {
   const [paymentProcessing, setPaymentProcessing] = useState(false)
   const [paymentError, setPaymentError] = useState('')
 
+  // ===== ONBOARDING + SETTINGS STATE =====
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [userService, setUserService] = useState('')
+  const [targetAudience, setTargetAudience] = useState('')
+  const [copywritingStyle, setCopywritingStyle] = useState('david_ogilvy')
+  const [settingsLoading, setSettingsLoading] = useState(false)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsSavedAt, setSettingsSavedAt] = useState<number | null>(null)
+  const [settingsError, setSettingsError] = useState('')
+
   // ===== FETCH CREDIT BALANCE ON MOUNT =====
   const loadBalance = useCallback(async () => {
     if (!userId) return
@@ -113,6 +134,67 @@ export function DashboardShell() {
       fetchCollections(userId).then(cols => setCollections(cols)).catch(() => {})
     }
   }, [userId, setCollections])
+
+  // ===== FETCH USER SETTINGS (show onboarding modal if user_service is empty) =====
+  const loadSettings = useCallback(async () => {
+    if (!userId) return
+    setSettingsLoading(true)
+    try {
+      const res = await fetch('/api/backend/settings', { method: 'GET' })
+      const data = await res.json()
+      const s = (data && data.settings) || data || {}
+      const svc = typeof s.user_service === 'string' ? s.user_service : ''
+      const aud = typeof s.target_audience === 'string' ? s.target_audience : ''
+      const sty = typeof s.copywriting_style === 'string' && s.copywriting_style ? s.copywriting_style : 'david_ogilvy'
+      setUserService(svc)
+      setTargetAudience(aud)
+      setCopywritingStyle(sty)
+      // Show onboarding only on first dashboard visit when service offering is empty.
+      if (!svc.trim()) {
+        setShowOnboarding(true)
+      }
+    } catch (err) {
+      console.warn('[Dashboard] Failed to fetch settings:', err)
+    } finally {
+      setSettingsLoading(false)
+    }
+  }, [userId])
+
+  useEffect(() => {
+    loadSettings()
+  }, [loadSettings])
+
+  // ===== SAVE SETTINGS (used by onboarding modal + settings view) =====
+  const handleSaveSettings = useCallback(async (svc: string, aud: string, style: string): Promise<boolean> => {
+    setSettingsSaving(true)
+    setSettingsError('')
+    try {
+      const res = await fetch('/api/backend/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_service: svc.trim(),
+          target_audience: aud.trim(),
+          copywriting_style: style,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || data.detail || `Save failed (${res.status})`)
+      }
+      setUserService(svc.trim())
+      setTargetAudience(aud.trim())
+      setCopywritingStyle(style)
+      setSettingsSavedAt(Date.now())
+      return true
+    } catch (err: any) {
+      console.error('[Dashboard] Save settings failed:', err)
+      setSettingsError(err.message || 'Could not save settings. Please try again.')
+      return false
+    } finally {
+      setSettingsSaving(false)
+    }
+  }, [])
 
   // ===== HANDLE SEARCH =====
   const handleSearch = useCallback(async () => {
@@ -417,6 +499,12 @@ export function DashboardShell() {
               active={activeView === 'support'}
               onClick={() => { setActiveView('support'); setSidebarOpen(false) }}
             />
+            <NavItem
+              icon="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              label="Settings"
+              active={activeView === 'settings'}
+              onClick={() => { setActiveView('settings'); setSidebarOpen(false) }}
+            />
           </nav>
 
           {/* User Section */}
@@ -486,8 +574,40 @@ export function DashboardShell() {
           {activeView === 'support' && (
             <SupportView />
           )}
+          {activeView === 'settings' && (
+            <SettingsView
+              userService={userService}
+              targetAudience={targetAudience}
+              copywritingStyle={copywritingStyle}
+              saving={settingsSaving}
+              savedAt={settingsSavedAt}
+              error={settingsError}
+              loading={settingsLoading}
+              onSave={handleSaveSettings}
+              onOpenOnboarding={() => setShowOnboarding(true)}
+            />
+          )}
         </div>
       </main>
+
+      {/* ===== ONBOARDING MODAL ===== */}
+      {showOnboarding && (
+        <OnboardingModal
+          userService={userService}
+          targetAudience={targetAudience}
+          copywritingStyle={copywritingStyle}
+          saving={settingsSaving}
+          error={settingsError}
+          setUserService={setUserService}
+          setTargetAudience={setTargetAudience}
+          setCopywritingStyle={setCopywritingStyle}
+          onComplete={async () => {
+            const ok = await handleSaveSettings(userService, targetAudience, copywritingStyle)
+            if (ok) setShowOnboarding(false)
+          }}
+          onDismiss={() => setShowOnboarding(false)}
+        />
+      )}
     </div>
   )
 }
@@ -1104,6 +1224,7 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
                 )}
               </div>
               {renderSocialLinks(lead)}
+              <OutreachMessages lead={lead} />
             </div>
           ))}
         </div>
@@ -1190,6 +1311,7 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
                   )}
                 </div>
                 {renderSocialLinks(lead)}
+                <OutreachMessages lead={lead} />
               </div>
             )
           })}
@@ -1271,6 +1393,7 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
                   </div>
                 )}
               </div>
+              <OutreachMessages lead={lead} />
             </div>
           ))}
         </div>
@@ -1339,6 +1462,7 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
                     </a>
                   </div>
                 )}
+                <OutreachMessages lead={lead} />
               </div>
             )
           })}
@@ -1370,6 +1494,7 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
                 {cleanUrl(lead.website_url)}
               </a>
             )}
+            <OutreachMessages lead={lead} />
           </div>
         ))}
       </div>
@@ -1665,6 +1790,483 @@ function SupportView() {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ============================================================
+// ONBOARDING MODAL — first-visit service setup
+// ============================================================
+function OnboardingModal({
+  userService, setUserService,
+  targetAudience, setTargetAudience,
+  copywritingStyle, setCopywritingStyle,
+  saving, error,
+  onComplete, onDismiss,
+}: {
+  userService: string
+  setUserService: (s: string) => void
+  targetAudience: string
+  setTargetAudience: (s: string) => void
+  copywritingStyle: string
+  setCopywritingStyle: (s: string) => void
+  saving: boolean
+  error: string
+  onComplete: () => void
+  onDismiss: () => void
+}) {
+  const canComplete = userService.trim().length > 0 && targetAudience.trim().length > 0 && !saving
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onDismiss}
+        aria-hidden="true"
+      />
+
+      {/* Modal */}
+      <div className="relative card-premium w-full max-w-lg p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
+        {/* Close (dismiss) */}
+        <button
+          onClick={onDismiss}
+          className="absolute top-4 right-4 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          aria-label="Dismiss"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        {/* Header */}
+        <div className="mb-6">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/20 mb-4">
+            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-foreground mb-1">Let&apos;s write your outreach.</h2>
+          <p className="text-[14px] text-muted-foreground">
+            Tell us what you sell and who you help. We use this to write personalized email, social, and call scripts for every lead you find.
+          </p>
+        </div>
+
+        {/* Form */}
+        <div className="space-y-5">
+          <div>
+            <label className="block text-[12px] font-semibold text-foreground mb-1.5 uppercase tracking-wide">
+              What do you sell?
+            </label>
+            <input
+              type="text"
+              value={userService}
+              onChange={(e) => setUserService(e.target.value)}
+              placeholder="e.g. I build websites for small businesses"
+              className="w-full px-4 py-3 rounded-lg bg-input border border-border focus:border-primary text-foreground text-[15px] outline-none transition-colors"
+              maxLength={500}
+            />
+          </div>
+
+          <div>
+            <label className="block text-[12px] font-semibold text-foreground mb-1.5 uppercase tracking-wide">
+              Who is your ideal customer?
+            </label>
+            <input
+              type="text"
+              value={targetAudience}
+              onChange={(e) => setTargetAudience(e.target.value)}
+              placeholder="e.g. Local businesses without a website"
+              className="w-full px-4 py-3 rounded-lg bg-input border border-border focus:border-primary text-foreground text-[15px] outline-none transition-colors"
+              maxLength={500}
+            />
+          </div>
+
+          <div>
+            <label className="block text-[12px] font-semibold text-foreground mb-1.5 uppercase tracking-wide">
+              Pick your message style
+            </label>
+            <select
+              value={copywritingStyle}
+              onChange={(e) => setCopywritingStyle(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg bg-input border border-border focus:border-primary text-foreground text-[15px] outline-none transition-colors appearance-none cursor-pointer"
+            >
+              {COPYWRITING_STYLES.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.label} ({s.desc})
+                </option>
+              ))}
+            </select>
+            <p className="text-[12px] text-muted-foreground mt-1.5">
+              You can change this anytime in Settings.
+            </p>
+          </div>
+
+          {error && (
+            <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3">
+              <p className="text-[13px] text-destructive">{error}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="mt-6 flex flex-col gap-2">
+          <button
+            onClick={onComplete}
+            disabled={!canComplete}
+            className="w-full py-3.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[15px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
+          >
+            {saving ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                Saving...
+              </span>
+            ) : (
+              'Complete Setup'
+            )}
+          </button>
+          <button
+            onClick={onDismiss}
+            className="w-full py-2 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Skip for now
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// SETTINGS VIEW — manage service offering + copywriting style
+// ============================================================
+function SettingsView({
+  userService, targetAudience, copywritingStyle,
+  saving, savedAt, error, loading,
+  onSave, onOpenOnboarding,
+}: {
+  userService: string
+  targetAudience: string
+  copywritingStyle: string
+  saving: boolean
+  savedAt: number | null
+  error: string
+  loading: boolean
+  onSave: (svc: string, aud: string, style: string) => Promise<boolean>
+  onOpenOnboarding: () => void
+}) {
+  // Local editable copy so the user can type freely without immediately
+  // mutating the shared dashboard state.
+  const [svc, setSvc] = useState(userService)
+  const [aud, setAud] = useState(targetAudience)
+  const [sty, setSty] = useState(copywritingStyle)
+  const [justSaved, setJustSaved] = useState(false)
+
+  // Sync from props when upstream settings change (e.g. after onboarding save).
+  useEffect(() => { setSvc(userService) }, [userService])
+  useEffect(() => { setAud(targetAudience) }, [targetAudience])
+  useEffect(() => { setSty(copywritingStyle) }, [copywritingStyle])
+
+  // Flash the "Saved" pill for ~2.5s after a successful save.
+  useEffect(() => {
+    if (!savedAt) return
+    setJustSaved(true)
+    const t = setTimeout(() => setJustSaved(false), 2500)
+    return () => clearTimeout(t)
+  }, [savedAt])
+
+  const dirty = svc !== userService || aud !== targetAudience || sty !== copywritingStyle
+
+  const handleSave = async () => {
+    await onSave(svc, aud, sty)
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">Settings</h1>
+          <p className="text-[14px] text-muted-foreground">Loading your preferences...</p>
+        </div>
+        <div className="card-premium p-10 text-center">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted border border-border mb-3">
+            <svg className="animate-spin w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          </div>
+          <p className="text-[14px] text-muted-foreground">One moment...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">Settings</h1>
+        <p className="text-[14px] text-muted-foreground">
+          These power your personalized outreach messages. Update anytime.
+        </p>
+      </div>
+
+      {/* Service card */}
+      <div className="card-premium p-6 space-y-5">
+        <div>
+          <h2 className="text-lg font-bold text-foreground mb-1">Your Service Offering</h2>
+          <p className="text-[13px] text-muted-foreground">
+            Tell us what you sell and who you serve. We use this to write emails, DMs, and call scripts for every lead.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-[12px] font-semibold text-foreground mb-1.5 uppercase tracking-wide">
+            What do you sell?
+          </label>
+          <input
+            type="text"
+            value={svc}
+            onChange={(e) => setSvc(e.target.value)}
+            placeholder="e.g. I build websites for small businesses"
+            className="w-full px-4 py-3 rounded-lg bg-input border border-border focus:border-primary text-foreground text-[15px] outline-none transition-colors"
+            maxLength={500}
+          />
+        </div>
+
+        <div>
+          <label className="block text-[12px] font-semibold text-foreground mb-1.5 uppercase tracking-wide">
+            Who is your ideal customer?
+          </label>
+          <input
+            type="text"
+            value={aud}
+            onChange={(e) => setAud(e.target.value)}
+            placeholder="e.g. Local businesses without a website"
+            className="w-full px-4 py-3 rounded-lg bg-input border border-border focus:border-primary text-foreground text-[15px] outline-none transition-colors"
+            maxLength={500}
+          />
+        </div>
+
+        <div>
+          <label className="block text-[12px] font-semibold text-foreground mb-1.5 uppercase tracking-wide">
+            Message style
+          </label>
+          <select
+            value={sty}
+            onChange={(e) => setSty(e.target.value)}
+            className="w-full px-4 py-3 rounded-lg bg-input border border-border focus:border-primary text-foreground text-[15px] outline-none transition-colors appearance-none cursor-pointer"
+          >
+            {COPYWRITING_STYLES.map(s => (
+              <option key={s.id} value={s.id}>
+                {s.label} ({s.desc})
+              </option>
+            ))}
+          </select>
+          <p className="text-[12px] text-muted-foreground mt-1.5">
+            Each style writes outreach in a different voice. Try a few to see what converts.
+          </p>
+        </div>
+
+        {error && (
+          <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3">
+            <p className="text-[13px] text-destructive">{error}</p>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-3 pt-2 flex-wrap">
+          <button
+            onClick={onOpenOnboarding}
+            className="text-[13px] text-primary hover:text-primary/80 font-medium transition-colors"
+          >
+            Reopen setup guide
+          </button>
+          <div className="flex items-center gap-3">
+            {justSaved && (
+              <span className="flex items-center gap-1.5 text-[13px] font-semibold text-success">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Saved
+              </span>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={!dirty || saving}
+              className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[14px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Helper note */}
+      <div className="card-premium p-5 bg-card border-primary/20">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-white/10 border border-white/10 flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-[14px] font-bold text-card-foreground mb-1">How outreach messages work</h3>
+            <p className="text-[13px] text-card-foreground/80 leading-relaxed">
+              When your service offering is set, every lead you find comes with three ready-to-send messages:
+              an email, a social DM, and a cold-call script — all written in your chosen style. Skip setup and
+              the messages will say ABSENT until you do.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// OUTREACH MESSAGES — expandable section inside each lead card
+// ============================================================
+function OutreachMessages({ lead }: { lead: Lead }) {
+  const [expanded, setExpanded] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const email = lead.outreach_email && lead.outreach_email !== 'ABSENT' ? lead.outreach_email : ''
+  const social = lead.outreach_social && lead.outreach_social !== 'ABSENT' ? lead.outreach_social : ''
+  const call = lead.outreach_call && lead.outreach_call !== 'ABSENT' ? lead.outreach_call : ''
+  const hasAny = Boolean(email || social || call)
+
+  const handleCopy = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(label)
+      setTimeout(() => setCopied(null), 1500)
+    } catch (err) {
+      console.warn('[OutreachMessages] Clipboard write failed:', err)
+    }
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="flex items-center justify-between w-full text-left gap-2 group"
+        aria-expanded={expanded}
+      >
+        <span className="flex items-center gap-2 text-[12px] font-bold text-foreground uppercase tracking-wide">
+          <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" />
+          </svg>
+          Outreach Messages
+          {!hasAny && (
+            <span className="px-1.5 py-0.5 rounded bg-warning-soft text-warning text-[10px] font-bold normal-case tracking-normal">
+              Not set up
+            </span>
+          )}
+        </span>
+        <svg
+          className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 ${expanded ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {expanded && (
+        <div className="mt-3 space-y-2">
+          {!hasAny ? (
+            <div className="rounded-lg bg-muted/50 border border-border-light p-3">
+              <p className="text-[12px] text-muted-foreground leading-relaxed">
+                Set up your service in <span className="font-semibold text-foreground">Settings</span> to get personalized outreach messages for every lead.
+              </p>
+            </div>
+          ) : (
+            <>
+              {email && (
+                <MessageRow
+                  icon="📧"
+                  label="Email"
+                  text={email}
+                  tint="bg-azure-soft border-azure/30"
+                  onCopy={() => handleCopy(email, 'email')}
+                  copied={copied === 'email'}
+                />
+              )}
+              {social && (
+                <MessageRow
+                  icon="💬"
+                  label="Social DM"
+                  text={social}
+                  tint="bg-violet-soft border-primary/30"
+                  onCopy={() => handleCopy(social, 'social')}
+                  copied={copied === 'social'}
+                />
+              )}
+              {call && (
+                <MessageRow
+                  icon="📞"
+                  label="Cold Call"
+                  text={call}
+                  tint="bg-warning-soft border-warning/30"
+                  onCopy={() => handleCopy(call, 'call')}
+                  copied={copied === 'call'}
+                />
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MessageRow({
+  icon, label, text, tint, onCopy, copied,
+}: {
+  icon: string
+  label: string
+  text: string
+  tint: string
+  onCopy: () => void
+  copied: boolean
+}) {
+  return (
+    <div className={`rounded-lg border p-3 ${tint}`}>
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-foreground">
+          <span aria-hidden="true">{icon}</span>
+          {label}
+        </span>
+        <button
+          onClick={onCopy}
+          className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+            copied
+              ? 'bg-success text-white'
+              : 'bg-white/70 hover:bg-white text-foreground border border-border-light'
+          }`}
+        >
+          {copied ? (
+            <>
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+              Copied
+            </>
+          ) : (
+            <>
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Copy
+            </>
+          )}
+        </button>
+      </div>
+      <p className="text-[13px] text-foreground whitespace-pre-wrap leading-relaxed">{text}</p>
     </div>
   )
 }

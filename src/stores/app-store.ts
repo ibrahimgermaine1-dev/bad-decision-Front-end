@@ -53,6 +53,10 @@ export interface Lead {
   intent_level?: string | null
   post_url?: string | null
   author_username?: string | null
+  // Outreach messages
+  outreach_email?: string | null
+  outreach_social?: string | null
+  outreach_call?: string | null
 }
 
 export interface SmartCollection {
