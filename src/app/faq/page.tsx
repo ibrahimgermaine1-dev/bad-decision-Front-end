@@ -135,7 +135,7 @@ const FAQ_SECTIONS: FAQSection[] = [
       {
         question: 'Do I need a plan to buy credits?',
         answer:
-          'No. You can buy credits one at a time without any plan. Buy what you need, when you need it. Some people never buy a plan. They just top up credits when they run out. That works fine.',
+          'Yes. You can buy credit top-ups anytime from your dashboard. Credits last for 30 days. You can also upgrade to a monthly plan for more credits and more search engines.',
       },
     ],
   },

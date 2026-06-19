@@ -109,7 +109,7 @@ export default function RefundPage() {
               </p>
               <p className="text-[15px] sm:text-base text-muted-foreground leading-relaxed">
                 A &ldquo;verified contact record&rdquo; is one in which the email address has
-                passed our validation pipeline (DNS check, SMTP mailbox check, and where
+                passed our validation pipeline (our email verification process, and where
                 applicable, catch-all detection). Records that do not pass validation are not
                 counted toward your credit consumption.
               </p>
@@ -131,8 +131,8 @@ export default function RefundPage() {
               <p className="text-[15px] sm:text-base text-muted-foreground leading-relaxed">
                 This bounce guarantee does not apply to bounces caused by your sender reputation,
                 your message content, the recipient&apos;s inbox being full, the recipient marking
-                your message as spam, or temporary delivery failures (4xx SMTP codes) that resolve
-                on retry. It applies only to permanent delivery failures (5xx SMTP codes) on
+                your message as spam, or temporary delivery failures that resolve
+                on retry. It applies only to permanent delivery failures on
                 emails we previously verified as deliverable.
               </p>
             </div>

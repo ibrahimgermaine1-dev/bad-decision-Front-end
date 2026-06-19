@@ -67,7 +67,7 @@ const FAQ_SECTIONS: FAQSection[] = [
     items: [
       {
         question: 'Can I have more than one account?',
-        answer: 'Yes. You can sign up with a different email anytime. We do not block multiple accounts. Each new account gets its own 50 free credits to start. If you need more credits, you can buy them or upgrade your plan anytime.',
+        answer: 'Yes. You can sign up with a different email anytime. We do not block multiple accounts. Each new account gets its own 100 free credits to start. If you need more credits, you can buy them or upgrade your plan anytime.',
       },
       {
         question: 'Can someone steal my credits?',

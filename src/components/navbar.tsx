@@ -102,7 +102,7 @@ export function Navbar() {
                   href="/sign-up"
                   className="px-5 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[14px] font-semibold transition-colors shadow-lg shadow-primary/20"
                 >
-                  Get 50 Free Leads
+                  Get 100 Free Leads
                 </Link>
               </>
             )}
@@ -160,7 +160,7 @@ export function Navbar() {
                     href="/sign-up"
                     className="block px-4 py-3 rounded-lg bg-primary text-white text-center text-[15px] font-semibold"
                   >
-                    Get 50 Free Leads
+                    Get 100 Free Leads
                   </Link>
                 </>
               )}
