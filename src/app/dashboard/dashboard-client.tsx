@@ -2132,11 +2132,15 @@ function SettingsView({
 function OutreachMessages({ lead }: { lead: Lead }) {
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState('')
+  const [messages, setMessages] = useState({
+    email: lead.outreach_email && lead.outreach_email !== 'ABSENT' ? lead.outreach_email : '',
+    social: lead.outreach_social && lead.outreach_social !== 'ABSENT' ? lead.outreach_social : '',
+    call: lead.outreach_call && lead.outreach_call !== 'ABSENT' ? lead.outreach_call : '',
+  })
 
-  const email = lead.outreach_email && lead.outreach_email !== 'ABSENT' ? lead.outreach_email : ''
-  const social = lead.outreach_social && lead.outreach_social !== 'ABSENT' ? lead.outreach_social : ''
-  const call = lead.outreach_call && lead.outreach_call !== 'ABSENT' ? lead.outreach_call : ''
-  const hasAny = Boolean(email || social || call)
+  const hasAny = Boolean(messages.email || messages.social || messages.call)
 
   const handleCopy = async (text: string, label: string) => {
     try {
@@ -2148,77 +2152,126 @@ function OutreachMessages({ lead }: { lead: Lead }) {
     }
   }
 
+  const handleGenerate = async () => {
+    setGenerating(true)
+    setError('')
+    try {
+      const res = await fetch('/api/backend/outreach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: lead.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.detail || data.error || 'Could not generate messages.')
+      } else {
+        setMessages({
+          email: data.outreach_email !== 'ABSENT' ? data.outreach_email : '',
+          social: data.outreach_social !== 'ABSENT' ? data.outreach_social : '',
+          call: data.outreach_call !== 'ABSENT' ? data.outreach_call : '',
+        })
+        setExpanded(true)
+      }
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   return (
     <div className="mt-3 pt-3 border-t border-border">
-      <button
-        onClick={() => setExpanded(v => !v)}
-        className="flex items-center justify-between w-full text-left gap-2 group"
-        aria-expanded={expanded}
-      >
-        <span className="flex items-center gap-2 text-[12px] font-bold text-foreground uppercase tracking-wide">
-          <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" />
-          </svg>
-          Outreach Messages
-          {!hasAny && (
-            <span className="px-1.5 py-0.5 rounded bg-warning-soft text-warning text-[10px] font-bold normal-case tracking-normal">
-              Not set up
-            </span>
-          )}
-        </span>
-        <svg
-          className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 ${expanded ? 'rotate-180' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+      {/* Generate button (shown when no messages yet) */}
+      {!hasAny && !generating && (
+        <button
+          onClick={handleGenerate}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary text-[12px] font-semibold transition-colors w-full justify-center"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          Write Outreach Messages
+        </button>
+      )}
 
-      {expanded && (
-        <div className="mt-3 space-y-2">
-          {!hasAny ? (
-            <div className="rounded-lg bg-muted/50 border border-border-light p-3">
-              <p className="text-[12px] text-muted-foreground leading-relaxed">
-                Set up your service in <span className="font-semibold text-foreground">Settings</span> to get personalized outreach messages for every lead.
-              </p>
+      {/* Generating state */}
+      {generating && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 text-[12px] text-muted-foreground">
+          <svg className="animate-spin w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          Writing personalized messages...
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && !generating && (
+        <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-2.5 mb-2">
+          <p className="text-[12px] text-destructive">{error}</p>
+        </div>
+      )}
+
+      {/* Messages (shown when they exist) */}
+      {hasAny && (
+        <>
+          <button
+            onClick={() => setExpanded(v => !v)}
+            className="flex items-center justify-between w-full text-left gap-2 group"
+            aria-expanded={expanded}
+          >
+            <span className="flex items-center gap-2 text-[12px] font-bold text-foreground uppercase tracking-wide">
+              <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" />
+              </svg>
+              Outreach Messages
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); handleGenerate(); }}
+                className="text-[10px] text-primary hover:text-primary/80 font-semibold"
+                title="Regenerate messages"
+              >
+                ↻ Regenerate
+              </button>
+              <svg
+                className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 ${expanded ? 'rotate-180' : ''}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
             </div>
-          ) : (
-            <>
-              {email && (
+          </button>
+
+          {expanded && (
+            <div className="mt-3 space-y-2">
+              {messages.email && (
                 <MessageRow
-                  icon="📧"
-                  label="Email"
-                  text={email}
+                  icon="📧" label="Email" text={messages.email}
                   tint="bg-azure-soft border-azure/30"
-                  onCopy={() => handleCopy(email, 'email')}
+                  onCopy={() => handleCopy(messages.email, 'email')}
                   copied={copied === 'email'}
                 />
               )}
-              {social && (
+              {messages.social && (
                 <MessageRow
-                  icon="💬"
-                  label="Social DM"
-                  text={social}
+                  icon="💬" label="Social DM" text={messages.social}
                   tint="bg-violet-soft border-primary/30"
-                  onCopy={() => handleCopy(social, 'social')}
+                  onCopy={() => handleCopy(messages.social, 'social')}
                   copied={copied === 'social'}
                 />
               )}
-              {call && (
+              {messages.call && (
                 <MessageRow
-                  icon="📞"
-                  label="Cold Call"
-                  text={call}
+                  icon="📞" label="Cold Call" text={messages.call}
                   tint="bg-warning-soft border-warning/30"
-                  onCopy={() => handleCopy(call, 'call')}
+                  onCopy={() => handleCopy(messages.call, 'call')}
                   copied={copied === 'call'}
                 />
               )}
-            </>
+            </div>
           )}
-        </div>
+        </>
       )}
     </div>
   )
