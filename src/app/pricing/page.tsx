@@ -14,6 +14,20 @@ import Script from 'next/script'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
+// Tier hierarchy: free < starter < growth < pro.
+// Higher number = higher tier. Used to disable downgrade buttons.
+const TIER_RANK: Record<TierId, number> = {
+  free: 0,
+  starter: 1,
+  growth: 2,
+  pro: 3,
+}
+
+function tierRank(id: string | undefined | null): number {
+  if (!id) return -1
+  return id in TIER_RANK ? TIER_RANK[id as TierId] : -1
+}
+
 export default function PricingPage() {
   const { isSignedIn, userId } = useAuth()
   const { user } = useUser()
@@ -122,7 +136,7 @@ export default function PricingPage() {
             Start free. <br /><span className="text-gradient-violet">Pay only when it works.</span>
           </h1>
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-6">
-            You get 50 free credits the moment you sign up. No credit card needed.
+            You get 100 free credits the moment you sign up. No credit card needed.
             When you want more, pick a plan that fits. You are never locked in.
           </p>
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-card border border-border text-[13px]">
@@ -148,6 +162,32 @@ export default function PricingPage() {
             {allTiers.map((plan) => {
               const isPopular = plan.popular
               const isCurrent = plan.id === tier && isSignedIn
+              // Disable any tier at or below the user's current tier.
+              // (You can't downgrade from the pricing page, and you can't
+              // re-buy the plan you already have.)
+              const currentRank = isSignedIn ? tierRank(tier) : -1
+              const planRank = tierRank(plan.id)
+              const isAtOrBelow = isSignedIn && planRank <= currentRank
+              const isDisabled = isCurrent || isAtOrBelow
+              const isUpgrade = isSignedIn && planRank > currentRank
+
+              // Button label logic:
+              // - Current plan: "Current Plan" (disabled, greyed)
+              // - Lower or equal tier that's not the current plan: "Included" (disabled)
+              // - Higher tier: "Upgrade to <Name>" (clickable)
+              // - Not signed in: original labels ("Start Free" / "Get <Name>")
+              let buttonLabel: string
+              if (isCurrent) {
+                buttonLabel = 'Current Plan'
+              } else if (isAtOrBelow) {
+                buttonLabel = 'Included'
+              } else if (isUpgrade) {
+                buttonLabel = `Upgrade to ${plan.name}`
+              } else if (paymentProcessing) {
+                buttonLabel = 'Please wait...'
+              } else {
+                buttonLabel = plan.priceUSD === 0 ? 'Start Free' : `Get ${plan.name}`
+              }
 
               return (
                 <div
@@ -198,16 +238,16 @@ export default function PricingPage() {
 
                   <button
                     className={`w-full mt-6 py-3 rounded-lg font-semibold text-[14px] transition-all ${
-                      isCurrent
-                        ? 'bg-muted text-muted-foreground cursor-default border border-border'
+                      isDisabled
+                        ? 'bg-muted text-muted-foreground cursor-not-allowed border border-border'
                         : isPopular
                         ? 'bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20'
                         : 'bg-card hover:bg-card/80 text-card-foreground border border-border hover:border-primary/50'
                     }`}
-                    disabled={isCurrent || paymentProcessing}
+                    disabled={isDisabled || paymentProcessing}
                     onClick={() => handlePurchase(plan.id)}
                   >
-                    {isCurrent ? 'Current Plan' : paymentProcessing ? 'Please wait...' : plan.priceUSD === 0 ? 'Start Free' : `Get ${plan.name}`}
+                    {buttonLabel}
                   </button>
                 </div>
               )
@@ -216,7 +256,7 @@ export default function PricingPage() {
 
           <div className="mt-10 text-center">
             <p className="text-[14px] text-muted-foreground">
-              Every new account gets <span className="font-semibold text-foreground">50 free credits</span>. No credit card needed.
+              Every new account gets <span className="font-semibold text-foreground">100 free credits</span>. No credit card needed.
             </p>
           </div>
         </div>

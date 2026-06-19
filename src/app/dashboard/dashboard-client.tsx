@@ -94,6 +94,9 @@ export function DashboardShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [paymentProcessing, setPaymentProcessing] = useState(false)
   const [paymentError, setPaymentError] = useState('')
+  // ID of the most recent completed search task. Passed down to ResultsView
+  // so the "Write Messages for All" button can call the batch outreach route.
+  const [taskId, setTaskId] = useState<string>('')
 
   // ===== ONBOARDING + SETTINGS STATE =====
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -210,6 +213,7 @@ export function DashboardShell() {
     setSearchStatus('processing')
     setSearchError('')
     setLeads([])
+    setTaskId('')
     setProgress(5)
     setCurrentStep('Starting search...')
 
@@ -232,6 +236,8 @@ export function DashboardShell() {
       if (!searchResult.task_id) {
         throw new Error(searchResult.message || searchResult.detail || 'No task ID returned')
       }
+
+      setTaskId(searchResult.task_id)
 
       const finalStatus = await pollUntilComplete(
         searchResult.task_id,
@@ -556,6 +562,8 @@ export function DashboardShell() {
               onSearch={handleSearch}
               creditBalance={creditBalance.credits_balance}
               tier={tier}
+              taskId={taskId}
+              onLeadsUpdated={setLeads}
             />
           )}
           {activeView === 'collections' && (
@@ -652,7 +660,8 @@ function SearchView({
   searchQuery, setSearchQuery,
   selectedCountry, setSelectedCountry,
   selectedState, setSelectedState,
-  searchStatus, searchError, leads, progress, currentStep, onSearch, creditBalance, tier
+  searchStatus, searchError, leads, progress, currentStep, onSearch, creditBalance, tier,
+  taskId, onLeadsUpdated,
 }: {
   selectedEngine: EngineType | null
   setSelectedEngine: (e: EngineType | null) => void
@@ -670,6 +679,8 @@ function SearchView({
   onSearch: () => void
   creditBalance: number
   tier: string
+  taskId: string
+  onLeadsUpdated: (leads: Lead[]) => void
 }) {
   const activeEngine = ENGINE_CARDS.find(e => e.id === selectedEngine)
   const hasNoCredits = creditBalance <= 0
@@ -905,7 +916,12 @@ function SearchView({
 
       {/* Results */}
       {searchStatus === 'completed' && (
-        <ResultsView leads={leads} engineType={selectedEngine} />
+        <ResultsView
+          leads={leads}
+          engineType={selectedEngine}
+          taskId={taskId}
+          onLeadsUpdated={onLeadsUpdated}
+        />
       )}
 
       {searchStatus === 'exhausted' && (
@@ -947,12 +963,75 @@ function SearchView({
 // ============================================================
 // RESULTS VIEW — engine-specific layouts
 // ============================================================
-function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineType | null }) {
+function ResultsView({
+  leads,
+  engineType,
+  taskId,
+  onLeadsUpdated,
+}: {
+  leads: Lead[]
+  engineType: EngineType | null
+  taskId: string
+  onLeadsUpdated: (leads: Lead[]) => void
+}) {
   const [sortBy, setSortBy] = useState<string>('default')
+  // Batch outreach generation state.
+  // - batchGenerating: true while the "Write Messages for All" request is running
+  // - batchResult: success/error summary shown to the user
+  // - batchVersion: bumped after a successful batch so OutreachMessages
+  //   components re-mount and pick up the updated lead props.
+  const [batchGenerating, setBatchGenerating] = useState(false)
+  const [batchResult, setBatchResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const [batchVersion, setBatchVersion] = useState(0)
 
   const handleExport = () => {
     const csv = exportLeadsToCsv(leads, engineType || undefined)
     downloadCsv(csv, `bad-decision-leads-${Date.now()}.csv`)
+  }
+
+  const handleBatchGenerate = async () => {
+    if (!taskId || batchGenerating) return
+    setBatchGenerating(true)
+    setBatchResult(null)
+    try {
+      const res = await fetch('/api/backend/outreach-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setBatchResult({
+          ok: false,
+          message: data.detail || data.error || `Could not generate messages (${res.status}).`,
+        })
+      } else {
+        const generated = data.generated ?? 0
+        const total = data.total_leads ?? leads.length
+        setBatchResult({
+          ok: true,
+          message: `Done! Wrote personalized messages for ${generated} out of ${total} leads.`,
+        })
+        // Mark each lead as having messages so the OutreachMessages UI flips
+        // from "Write Outreach Messages" to the expandable view. The actual
+        // message body is fetched from the single-lead endpoint on demand
+        // when the user clicks "Regenerate" inside a lead card.
+        onLeadsUpdated(
+          leads.map(l => ({
+            ...l,
+            outreach_email: l.outreach_email && l.outreach_email !== 'ABSENT' ? l.outreach_email : 'Generated',
+            outreach_social: l.outreach_social && l.outreach_social !== 'ABSENT' ? l.outreach_social : 'Generated',
+            outreach_call: l.outreach_call && l.outreach_call !== 'ABSENT' ? l.outreach_call : 'Generated',
+          }))
+        )
+        // Force OutreachMessages to re-mount so it reads the updated props.
+        setBatchVersion(v => v + 1)
+      }
+    } catch (err: any) {
+      setBatchResult({ ok: false, message: err.message || 'Something went wrong.' })
+    } finally {
+      setBatchGenerating(false)
+    }
   }
 
   const sortedLeads = useMemo(() => {
@@ -993,6 +1072,76 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
       </svg>
       Export CSV
     </button>
+  )
+
+  // "Write Messages for All" — fires the batch outreach endpoint for every
+  // lead in this task at once. Disabled while running or when there's no task.
+  const renderBatchBtn = () => (
+    <button
+      onClick={handleBatchGenerate}
+      disabled={batchGenerating || !taskId}
+      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-[13px] font-semibold transition-colors ${
+        batchGenerating || !taskId
+          ? 'bg-muted text-muted-foreground border border-border cursor-not-allowed'
+          : 'bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20'
+      }`}
+      title={!taskId ? 'Run a search first' : 'Write outreach messages for every lead in this list'}
+    >
+      {batchGenerating ? (
+        <>
+          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          Writing messages...
+        </>
+      ) : (
+        <>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          Write Messages for All
+        </>
+      )}
+    </button>
+  )
+
+  // Helper that renders the action button row + the info text + the batch
+  // status banner. Same markup in every engine header so we keep it DRY.
+  const renderHeaderActions = () => (
+    <div className="flex items-center gap-2 flex-wrap">
+      {renderBatchBtn()}
+      {renderExportBtn()}
+    </div>
+  )
+
+  const renderBatchBanner = () => {
+    if (!batchResult) return null
+    return (
+      <div
+        className={`rounded-xl border p-4 ${
+          batchResult.ok
+            ? 'bg-success/10 border-success/30'
+            : 'bg-destructive/10 border-destructive/30'
+        }`}
+      >
+        <p className={`text-[14px] font-semibold ${batchResult.ok ? 'text-success' : 'text-destructive'}`}>
+          {batchResult.message}
+        </p>
+        {batchResult.ok && (
+          <p className="text-[13px] text-muted-foreground mt-1">
+            Click any lead&apos;s &ldquo;Outreach Messages&rdquo; section and hit &ldquo;Regenerate&rdquo; to see the full text.
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  const renderInfoText = () => (
+    <p className="text-[13px] text-muted-foreground max-w-2xl">
+      Click &ldquo;Write Outreach Messages&rdquo; on any lead to get personalized email, social, and call scripts.
+      Or use &ldquo;Write Messages for All&rdquo; to generate them for every lead at once.
+    </p>
   )
 
   const renderSortBtn = (value: string, label: string) => (
@@ -1153,8 +1302,10 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
             </h2>
             <p className="text-[13px] text-muted-foreground">Shops, clinics, and offices ready to contact.</p>
           </div>
-          {renderExportBtn()}
+          {renderHeaderActions()}
         </div>
+        {renderInfoText()}
+        {renderBatchBanner()}
         {renderSortBar([
           { value: 'rating', label: 'Rating' },
           { value: 'name', label: 'Name (A-Z)' },
@@ -1224,7 +1375,7 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
                 )}
               </div>
               {renderSocialLinks(lead)}
-              <OutreachMessages lead={lead} />
+              <OutreachMessages key={`${lead.id ?? i}-${batchVersion}`} lead={lead} />
             </div>
           ))}
         </div>
@@ -1245,8 +1396,10 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
             </h2>
             <p className="text-[13px] text-muted-foreground">Companies actively spending on ads right now.</p>
           </div>
-          {renderExportBtn()}
+          {renderHeaderActions()}
         </div>
+        {renderInfoText()}
+        {renderBatchBanner()}
         {renderSortBar([
           { value: 'platform', label: 'Platform' },
           { value: 'name', label: 'Name (A-Z)' },
@@ -1311,7 +1464,7 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
                   )}
                 </div>
                 {renderSocialLinks(lead)}
-                <OutreachMessages lead={lead} />
+                <OutreachMessages key={`${lead.id ?? i}-${batchVersion}`} lead={lead} />
               </div>
             )
           })}
@@ -1333,8 +1486,10 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
             </h2>
             <p className="text-[13px] text-muted-foreground">Listed on aggregators but missing a website — easy wins.</p>
           </div>
-          {renderExportBtn()}
+          {renderHeaderActions()}
         </div>
+        {renderInfoText()}
+        {renderBatchBanner()}
         {renderSortBar([
           { value: 'rating', label: 'Rating' },
           { value: 'name', label: 'Name (A-Z)' },
@@ -1393,7 +1548,7 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
                   </div>
                 )}
               </div>
-              <OutreachMessages lead={lead} />
+              <OutreachMessages key={`${lead.id ?? i}-${batchVersion}`} lead={lead} />
             </div>
           ))}
         </div>
@@ -1414,8 +1569,10 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
             </h2>
             <p className="text-[13px] text-muted-foreground">Real people posting about problems you can solve.</p>
           </div>
-          {renderExportBtn()}
+          {renderHeaderActions()}
         </div>
+        {renderInfoText()}
+        {renderBatchBanner()}
         {renderSortBar([
           { value: 'intent', label: 'Intent Level' },
           { value: 'platform', label: 'Platform' },
@@ -1462,7 +1619,7 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
                     </a>
                   </div>
                 )}
-                <OutreachMessages lead={lead} />
+                <OutreachMessages key={`${lead.id ?? i}-${batchVersion}`} lead={lead} />
               </div>
             )
           })}
@@ -1483,8 +1640,10 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
           </h2>
           <p className="text-[13px] text-muted-foreground">Every email has been tested. Send your pitch with confidence.</p>
         </div>
-        {renderExportBtn()}
+        {renderHeaderActions()}
       </div>
+      {renderInfoText()}
+      {renderBatchBanner()}
       <div className="grid grid-cols-1 gap-3">
         {sortedLeads.map((lead, i) => (
           <div key={i} className="card-premium p-4 sm:p-5">
@@ -1494,7 +1653,7 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
                 {cleanUrl(lead.website_url)}
               </a>
             )}
-            <OutreachMessages lead={lead} />
+            <OutreachMessages key={`${lead.id ?? i}-${batchVersion}`} lead={lead} />
           </div>
         ))}
       </div>
