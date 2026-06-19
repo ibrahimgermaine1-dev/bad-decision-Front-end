@@ -48,7 +48,7 @@ export default function PricingPage() {
 
     try {
       if (typeof window !== 'undefined' && (window as any).PaystackPop) {
-        const handler = (window as any).PaystackPop.setup({
+        const handler = (window as any).PaystackPop.newTransaction({
           reference: crypto.randomUUID(),
           email: user?.primaryEmailAddress?.emailAddress || '',
           amount: selectedTier.priceKobo,

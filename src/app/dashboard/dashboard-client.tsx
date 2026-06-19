@@ -13,11 +13,11 @@
  * - Payment via Paystack inline popup
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useAuth, useUser, useClerk } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Script from 'next/script'
-import { useAppStore, type EngineType, type Lead } from '@/stores/app-store'
+import { useAppStore, type EngineType, type Lead, type SmartCollection } from '@/stores/app-store'
 import { startSearch, pollUntilComplete, fetchCreditBalance, verifyPayment, fetchCollections } from '@/lib/api'
 import { CREDIT_ADDONS, type TierId, formatAddonPrice, isEngineAvailable } from '@/lib/pricing'
 import { LocationSelector } from '@/components/location-selector'
@@ -230,7 +230,7 @@ export function DashboardShell() {
       if (typeof window !== 'undefined' && (window as any).PaystackPop) {
         const reference = crypto.randomUUID()
         console.log('[Payment] Starting Paystack payment:', { reference, amount: addon.priceKobo, email: user.primaryEmailAddress.emailAddress })
-        const handler = (window as any).PaystackPop.setup({
+        const handler = (window as any).PaystackPop.newTransaction({
           reference,
           email: user.primaryEmailAddress.emailAddress,
           amount: addon.priceKobo,
@@ -793,14 +793,531 @@ function SearchView({
 }
 
 // ============================================================
-// RESULTS VIEW
+// RESULTS VIEW — engine-specific layouts
 // ============================================================
 function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineType | null }) {
+  const [sortBy, setSortBy] = useState<string>('default')
+
   const handleExport = () => {
     const csv = exportLeadsToCsv(leads, engineType || undefined)
     downloadCsv(csv, `bad-decision-leads-${Date.now()}.csv`)
   }
 
+  const sortedLeads = useMemo(() => {
+    if (!leads) return []
+    const arr = [...leads]
+    if (sortBy === 'rating') {
+      arr.sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))
+    } else if (sortBy === 'name') {
+      arr.sort((a, b) => {
+        const nameA = (a.company_name || a.author_username || '').toLowerCase()
+        const nameB = (b.company_name || b.author_username || '').toLowerCase()
+        return nameA.localeCompare(nameB)
+      })
+    } else if (sortBy === 'email') {
+      const has = (l: Lead) => l.verified_email && l.verified_email !== 'ABSENT' ? 1 : 0
+      arr.sort((a, b) => has(b) - has(a))
+    } else if (sortBy === 'phone') {
+      const has = (l: Lead) => l.phone && l.phone !== 'ABSENT' ? 1 : 0
+      arr.sort((a, b) => has(b) - has(a))
+    } else if (sortBy === 'platform') {
+      const plat = (l: Lead) => (l.ad_platform || l.platform || '').toLowerCase()
+      arr.sort((a, b) => plat(a).localeCompare(plat(b)))
+    } else if (sortBy === 'intent') {
+      const levelMap: Record<string, number> = { high: 3, medium: 2, low: 1 }
+      const lvl = (l: Lead) => levelMap[(l.intent_level || '').toLowerCase()] || 0
+      arr.sort((a, b) => lvl(b) - lvl(a))
+    }
+    return arr
+  }, [leads, sortBy])
+
+  const renderExportBtn = () => (
+    <button
+      onClick={handleExport}
+      className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-card border border-border hover:border-primary/50 text-card-foreground text-[13px] font-semibold transition-colors"
+    >
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+      Export CSV
+    </button>
+  )
+
+  const renderSortBtn = (value: string, label: string) => (
+    <button
+      onClick={() => setSortBy(sortBy === value ? 'default' : value)}
+      className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors border ${
+        sortBy === value
+          ? 'bg-primary text-white border-primary'
+          : 'bg-card text-card-foreground border-border hover:border-primary/50'
+      }`}
+    >
+      {label}
+    </button>
+  )
+
+  const renderSortBar = (options: Array<{ value: string, label: string }>) => (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-[12px] text-muted-foreground">Sort by:</span>
+      {options.map(opt => (
+        <span key={opt.value}>{renderSortBtn(opt.value, opt.label)}</span>
+      ))}
+    </div>
+  )
+
+  const renderSocialLinks = (lead: Lead) => {
+    const links: Array<{ label: string, href: string }> = []
+    if (lead.linkedin && lead.linkedin !== 'ABSENT') {
+      links.push({ label: 'LinkedIn', href: lead.linkedin.startsWith('http') ? lead.linkedin : `https://${lead.linkedin}` })
+    }
+    if (lead.instagram && lead.instagram !== 'ABSENT') {
+      links.push({ label: 'Instagram', href: lead.instagram.startsWith('http') ? lead.instagram : `https://${lead.instagram}` })
+    }
+    if (lead.facebook && lead.facebook !== 'ABSENT') {
+      links.push({ label: 'Facebook', href: lead.facebook.startsWith('http') ? lead.facebook : `https://${lead.facebook}` })
+    }
+    if (links.length === 0) return null
+    return (
+      <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border">
+        {links.map(l => (
+          <a
+            key={l.label}
+            href={l.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[12px] text-primary hover:text-primary/80 transition-colors"
+          >
+            {l.label}
+          </a>
+        ))}
+      </div>
+    )
+  }
+
+  // ---------- Ad platform badge (ads_intent) ----------
+  const renderAdPlatformBadge = (platform?: string | null) => {
+    if (!platform) return null
+    const p = platform.toLowerCase()
+    let label = platform
+    let bgClass = 'bg-muted text-foreground'
+    if (p.includes('facebook') || p === 'fb') {
+      label = 'Facebook'
+      bgClass = 'bg-[#1877F2] text-white'
+    } else if (p.includes('google')) {
+      label = 'Google'
+      bgClass = 'bg-[#4285F4] text-white'
+    } else if (p.includes('tiktok')) {
+      label = 'TikTok'
+      bgClass = 'bg-black text-white'
+    } else if (p.includes('instagram') || p === 'insta') {
+      label = 'Instagram'
+      bgClass = 'bg-[#E1306C] text-white'
+    }
+    return (
+      <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase shrink-0 ${bgClass}`}>
+        {label}
+      </span>
+    )
+  }
+
+  // ---------- Aggregator source badge (web_absent) ----------
+  const renderAggregatorBadge = (source?: string | null) => {
+    if (!source) return null
+    const s = source.toLowerCase()
+    let label = source
+    let bgClass = 'bg-muted text-foreground'
+    if (s.includes('yelp')) {
+      label = 'Yelp'
+      bgClass = 'bg-[#D32323] text-white'
+    } else if (s.includes('houzz')) {
+      label = 'Houzz'
+      bgClass = 'bg-[#4DBC15] text-white'
+    } else if (s.includes('etsy')) {
+      label = 'Etsy'
+      bgClass = 'bg-[#F1641E] text-white'
+    } else if (s.includes('yellow')) {
+      label = 'Yellow Pages'
+      bgClass = 'bg-[#FFD400] text-black'
+    } else if (s.includes('google')) {
+      label = 'Google Maps'
+      bgClass = 'bg-[#4285F4] text-white'
+    } else if (s.includes('tripadvisor')) {
+      label = 'TripAdvisor'
+      bgClass = 'bg-[#34E0A1] text-black'
+    }
+    return (
+      <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase ${bgClass}`}>
+        {label}
+      </span>
+    )
+  }
+
+  // ---------- Social platform badge (social_intent) ----------
+  const renderSocialPlatformBadge = (platform?: string | null) => {
+    if (!platform) return null
+    const p = platform.toLowerCase()
+    let label = platform
+    let bgClass = 'bg-muted text-foreground'
+    if (p.includes('reddit')) {
+      label = 'Reddit'
+      bgClass = 'bg-[#FF4500] text-white'
+    } else if (p.includes('twitter') || p.includes('x.com')) {
+      label = 'Twitter / X'
+      bgClass = 'bg-black text-white'
+    } else if (p.includes('facebook') || p === 'fb') {
+      label = 'Facebook'
+      bgClass = 'bg-[#1877F2] text-white'
+    } else if (p.includes('linkedin')) {
+      label = 'LinkedIn'
+      bgClass = 'bg-[#0A66C2] text-white'
+    }
+    return (
+      <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase shrink-0 ${bgClass}`}>
+        {label}
+      </span>
+    )
+  }
+
+  const intentBadgeClass = (level?: string | null) => {
+    const l = (level || '').toLowerCase()
+    if (l === 'high') return 'bg-danger-soft text-danger'
+    if (l === 'medium') return 'bg-warning-soft text-warning'
+    return 'bg-muted text-muted-foreground'
+  }
+
+  const normalizeUrl = (url: string) => (url.startsWith('http') ? url : `https://${url}`)
+  const cleanUrl = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/$/, '')
+
+  // ============================================================
+  // SMB_MAPS — Local Businesses
+  // ============================================================
+  if (engineType === 'smb_maps') {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-foreground">
+              {leads.length} local {leads.length === 1 ? 'business' : 'businesses'} found
+            </h2>
+            <p className="text-[13px] text-muted-foreground">Shops, clinics, and offices ready to contact.</p>
+          </div>
+          {renderExportBtn()}
+        </div>
+        {renderSortBar([
+          { value: 'rating', label: 'Rating' },
+          { value: 'name', label: 'Name (A-Z)' },
+          { value: 'email', label: 'Has Email' },
+        ])}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {sortedLeads.map((lead, i) => (
+            <div key={i} className="card-premium p-4 sm:p-5">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-bold text-[15px] text-foreground truncate">{lead.company_name}</h3>
+                  {lead.category && lead.category !== 'ABSENT' && (
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-violet-soft text-primary text-[10px] font-bold uppercase tracking-wide">
+                      {lead.category}
+                    </span>
+                  )}
+                </div>
+                {lead.rating != null && Number(lead.rating) > 0 && (
+                  <div className="flex items-center gap-1 text-[13px] font-bold text-foreground shrink-0">
+                    <svg className="w-4 h-4 text-warning" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    {Number(lead.rating).toFixed(1)}
+                    {lead.review_count != null && Number(lead.review_count) > 0 && (
+                      <span className="text-[11px] font-normal text-muted-foreground ml-1">
+                        ({Number(lead.review_count).toLocaleString()})
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2 mt-2">
+                {lead.address && lead.address !== 'ABSENT' && (
+                  <div className="flex items-start gap-2 text-[13px]">
+                    <svg className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span className="text-foreground">{lead.address}</span>
+                  </div>
+                )}
+                {lead.phone && lead.phone !== 'ABSENT' && (
+                  <div className="flex items-center gap-2 text-[13px]">
+                    <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    <a href={`tel:${lead.phone}`} className="text-foreground hover:text-primary transition-colors">{lead.phone}</a>
+                  </div>
+                )}
+                {lead.website_url && lead.website_url !== 'ABSENT' && (
+                  <div className="flex items-center gap-2 text-[13px]">
+                    <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                    </svg>
+                    <a href={normalizeUrl(lead.website_url)} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors truncate">
+                      {cleanUrl(lead.website_url)}
+                    </a>
+                  </div>
+                )}
+                {lead.verified_email && lead.verified_email !== 'ABSENT' && (
+                  <div className="flex items-center gap-2 text-[13px]">
+                    <svg className="w-3.5 h-3.5 text-success shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-foreground truncate">{lead.verified_email}</span>
+                    <span className="text-[10px] font-bold uppercase text-success">Verified</span>
+                  </div>
+                )}
+              </div>
+              {renderSocialLinks(lead)}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // ============================================================
+  // ADS_INTENT — Ads Intelligence
+  // ============================================================
+  if (engineType === 'ads_intent') {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-foreground">
+              {leads.length} {leads.length === 1 ? 'business' : 'businesses'} running ads found
+            </h2>
+            <p className="text-[13px] text-muted-foreground">Companies actively spending on ads right now.</p>
+          </div>
+          {renderExportBtn()}
+        </div>
+        {renderSortBar([
+          { value: 'platform', label: 'Platform' },
+          { value: 'name', label: 'Name (A-Z)' },
+          { value: 'email', label: 'Has Email' },
+        ])}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {sortedLeads.map((lead, i) => {
+            const isActive = (lead.ad_status || '').toLowerCase() === 'active'
+            return (
+              <div key={i} className="card-premium p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-2 mb-2 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-bold text-[15px] text-foreground truncate">{lead.company_name}</h3>
+                  </div>
+                  {renderAdPlatformBadge(lead.ad_platform)}
+                </div>
+                {lead.ad_status && lead.ad_status !== 'ABSENT' && (
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-success' : 'bg-muted-foreground'}`} />
+                    <span className={`text-[12px] font-semibold ${isActive ? 'text-success' : 'text-muted-foreground'}`}>
+                      {lead.ad_status}
+                    </span>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  {lead.website_url && lead.website_url !== 'ABSENT' && (
+                    <div className="flex items-center gap-2 text-[13px]">
+                      <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                      </svg>
+                      <a href={normalizeUrl(lead.website_url)} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors truncate">
+                        {cleanUrl(lead.website_url)}
+                      </a>
+                    </div>
+                  )}
+                  {lead.verified_email && lead.verified_email !== 'ABSENT' && (
+                    <div className="flex items-center gap-2 text-[13px]">
+                      <svg className="w-3.5 h-3.5 text-success shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-foreground truncate">{lead.verified_email}</span>
+                    </div>
+                  )}
+                  {lead.phone && lead.phone !== 'ABSENT' && (
+                    <div className="flex items-center gap-2 text-[13px]">
+                      <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                      <a href={`tel:${lead.phone}`} className="text-foreground hover:text-primary transition-colors">{lead.phone}</a>
+                    </div>
+                  )}
+                  {lead.dm_name && lead.dm_name !== 'ABSENT' && (
+                    <div className="flex items-center gap-2 text-[13px]">
+                      <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <span className="text-foreground">{lead.dm_name}</span>
+                      {lead.dm_position && lead.dm_position !== 'ABSENT' && (
+                        <span className="text-muted-foreground">· {lead.dm_position}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {renderSocialLinks(lead)}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // ============================================================
+  // WEB_ABSENT — Businesses Without Websites
+  // ============================================================
+  if (engineType === 'web_absent') {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-foreground">
+              {leads.length} {leads.length === 1 ? 'business' : 'businesses'} that need a website found
+            </h2>
+            <p className="text-[13px] text-muted-foreground">Listed on aggregators but missing a website — easy wins.</p>
+          </div>
+          {renderExportBtn()}
+        </div>
+        {renderSortBar([
+          { value: 'rating', label: 'Rating' },
+          { value: 'name', label: 'Name (A-Z)' },
+          { value: 'phone', label: 'Has Phone' },
+        ])}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {sortedLeads.map((lead, i) => (
+            <div key={i} className="card-premium p-4 sm:p-5">
+              <div className="flex items-start justify-between gap-2 mb-3 flex-wrap">
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-bold text-[15px] text-foreground truncate">{lead.company_name}</h3>
+                </div>
+                <span className="px-2.5 py-1 rounded-md bg-danger-soft text-danger text-[10px] font-bold uppercase shrink-0">
+                  No Website
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                {renderAggregatorBadge(lead.aggregator_source)}
+                {lead.aggregator_rating != null && Number(lead.aggregator_rating) > 0 && (
+                  <div className="flex items-center gap-1 text-[12px] font-bold text-foreground">
+                    <svg className="w-3.5 h-3.5 text-warning" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    {Number(lead.aggregator_rating).toFixed(1)}
+                  </div>
+                )}
+                <span className="px-2 py-0.5 rounded-md bg-success-soft text-success text-[10px] font-bold uppercase">
+                  Needs Website
+                </span>
+              </div>
+              <div className="space-y-2">
+                {lead.aggregator_url && lead.aggregator_url !== 'ABSENT' && (
+                  <div className="flex items-center gap-2 text-[13px]">
+                    <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    <a href={normalizeUrl(lead.aggregator_url)} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors truncate">
+                      View aggregator profile
+                    </a>
+                  </div>
+                )}
+                {lead.phone && lead.phone !== 'ABSENT' && (
+                  <div className="flex items-center gap-2 text-[13px]">
+                    <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    <a href={`tel:${lead.phone}`} className="text-foreground hover:text-primary transition-colors">{lead.phone}</a>
+                  </div>
+                )}
+                {lead.address && lead.address !== 'ABSENT' && (
+                  <div className="flex items-start gap-2 text-[13px]">
+                    <svg className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span className="text-foreground">{lead.address}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // ============================================================
+  // SOCIAL_INTENT — Social Radar
+  // ============================================================
+  if (engineType === 'social_intent') {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-foreground">
+              {leads.length} {leads.length === 1 ? 'person' : 'people'} looking for help found
+            </h2>
+            <p className="text-[13px] text-muted-foreground">Real people posting about problems you can solve.</p>
+          </div>
+          {renderExportBtn()}
+        </div>
+        {renderSortBar([
+          { value: 'intent', label: 'Intent Level' },
+          { value: 'platform', label: 'Platform' },
+        ])}
+        <div className="grid grid-cols-1 gap-3">
+          {sortedLeads.map((lead, i) => {
+            const isHigh = (lead.intent_level || '').toLowerCase() === 'high'
+            return (
+              <div key={i} className="card-premium p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-2 mb-2 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-bold text-[15px] text-foreground truncate">
+                      {lead.author_username || lead.company_name || 'Anonymous'}
+                    </h3>
+                  </div>
+                  {renderSocialPlatformBadge(lead.platform)}
+                </div>
+                {lead.intent_text && lead.intent_text !== 'ABSENT' && (
+                  <div className="my-3 pl-3 border-l-2 border-primary/40">
+                    <p className="text-[14px] italic text-foreground leading-relaxed">
+                      &ldquo;{lead.intent_text}&rdquo;
+                    </p>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {lead.intent_level && lead.intent_level !== 'ABSENT' && (
+                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase ${intentBadgeClass(lead.intent_level)}`}>
+                      {lead.intent_level} Intent
+                    </span>
+                  )}
+                  {isHigh && (
+                    <span className="px-2.5 py-1 rounded-md bg-success-soft text-success text-[10px] font-bold uppercase">
+                      Ready to Buy
+                    </span>
+                  )}
+                </div>
+                {lead.post_url && lead.post_url !== 'ABSENT' && (
+                  <div className="flex items-center gap-2 mt-3 text-[13px]">
+                    <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    <a href={normalizeUrl(lead.post_url)} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors truncate">
+                      View original post
+                    </a>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // ============================================================
+  // FALLBACK — generic layout when engine is unknown
+  // ============================================================
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -810,77 +1327,17 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
           </h2>
           <p className="text-[13px] text-muted-foreground">Every email has been tested. Send your pitch with confidence.</p>
         </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-card border border-border hover:border-primary/50 text-card-foreground text-[13px] font-semibold transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Export CSV
-        </button>
+        {renderExportBtn()}
       </div>
-
-      {/* Leads Grid */}
       <div className="grid grid-cols-1 gap-3">
-        {leads.map((lead, i) => (
+        {sortedLeads.map((lead, i) => (
           <div key={i} className="card-premium p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-3 flex-wrap">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <h3 className="font-bold text-[15px] text-foreground truncate">{lead.company_name}</h3>
-                  {lead.is_catchall && (
-                    <span className="px-2 py-0.5 rounded-md bg-warning/15 text-warning text-[10px] font-bold uppercase">
-                      Catch-All
-                    </span>
-                  )}
-                </div>
-                {lead.website_url && lead.website_url !== 'ABSENT' && (
-                  <a
-                    href={lead.website_url.startsWith('http') ? lead.website_url : `https://${lead.website_url}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[13px] text-primary hover:text-primary/80 transition-colors"
-                  >
-                    {lead.website_url}
-                  </a>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-              {lead.dm_name && lead.dm_name !== 'ABSENT' && (
-                <div className="flex items-center gap-2 text-[13px]">
-                  <span className="text-muted-foreground">Contact:</span>
-                  <span className="text-foreground">{lead.dm_name}</span>
-                  {lead.dm_position && lead.dm_position !== 'ABSENT' && (
-                    <span className="text-muted-foreground">· {lead.dm_position}</span>
-                  )}
-                </div>
-              )}
-              {lead.verified_email && lead.verified_email !== 'ABSENT' && (
-                <div className="flex items-center gap-2 text-[13px]">
-                  <svg className="w-3.5 h-3.5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-foreground truncate">{lead.verified_email}</span>
-                </div>
-              )}
-              {lead.phone && lead.phone !== 'ABSENT' && (
-                <div className="flex items-center gap-2 text-[13px]">
-                  <span className="text-muted-foreground">Phone:</span>
-                  <span className="text-foreground">{lead.phone}</span>
-                </div>
-              )}
-              {lead.linkedin && lead.linkedin !== 'ABSENT' && (
-                <div className="flex items-center gap-2 text-[13px]">
-                  <span className="text-muted-foreground">LinkedIn:</span>
-                  <a href={lead.linkedin} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 truncate">
-                    {lead.linkedin}
-                  </a>
-                </div>
-              )}
-            </div>
+            <h3 className="font-bold text-[15px] text-foreground mb-1 truncate">{lead.company_name}</h3>
+            {lead.website_url && lead.website_url !== 'ABSENT' && (
+              <a href={normalizeUrl(lead.website_url)} target="_blank" rel="noopener noreferrer" className="text-[13px] text-primary hover:text-primary/80 transition-colors">
+                {cleanUrl(lead.website_url)}
+              </a>
+            )}
           </div>
         ))}
       </div>
@@ -889,14 +1346,56 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
 }
 
 // ============================================================
-// COLLECTIONS VIEW
+// COLLECTIONS VIEW — grouped by engine type
 // ============================================================
-function CollectionsView({ collections }: { collections: any[] }) {
+const ENGINE_META: Record<EngineType, { name: string; iconPath: string }> = {
+  smb_maps: {
+    name: 'Local Businesses',
+    iconPath: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z',
+  },
+  ads_intent: {
+    name: 'Ads Intelligence',
+    iconPath: 'M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z',
+  },
+  web_absent: {
+    name: 'Web-Absent',
+    iconPath: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9',
+  },
+  social_intent: {
+    name: 'Social Radar',
+    iconPath: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
+  },
+}
+
+const ENGINE_ORDER: EngineType[] = ['smb_maps', 'ads_intent', 'web_absent', 'social_intent']
+
+function CollectionsView({ collections }: { collections: SmartCollection[] }) {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+
+  const grouped = useMemo(() => {
+    const groups: Record<EngineType, SmartCollection[]> = {
+      smb_maps: [],
+      ads_intent: [],
+      web_absent: [],
+      social_intent: [],
+    }
+    collections.forEach(col => {
+      if (col && groups[col.task_type]) {
+        groups[col.task_type].push(col)
+      }
+    })
+    return groups
+  }, [collections])
+
+  const toggle = (engine: EngineType) => {
+    setCollapsed(prev => ({ ...prev, [engine]: !prev[engine] }))
+  }
+
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">Your Collections</h1>
-        <p className="text-[14px] text-muted-foreground">Every search you run gets saved here for later.</p>
+        <p className="text-[14px] text-muted-foreground">Every search you run gets saved here, grouped by engine type.</p>
       </div>
 
       {collections.length === 0 ? (
@@ -912,19 +1411,58 @@ function CollectionsView({ collections }: { collections: any[] }) {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {collections.map((col, i) => (
-            <div key={i} className="card-premium p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="px-2 py-0.5 rounded-md bg-muted text-[11px] font-bold text-primary uppercase">
-                  {col.task_type}
-                </span>
-                <span className="text-[12px] text-muted-foreground">{col.created_at}</span>
+        <div className="space-y-3">
+          {ENGINE_ORDER.map(engine => {
+            const cols = grouped[engine]
+            if (!cols || cols.length === 0) return null
+            const totalLeads = cols.reduce((sum, c) => sum + (c.lead_count || 0), 0)
+            const isCollapsed = collapsed[engine] === true
+            const meta = ENGINE_META[engine]
+            return (
+              <div key={engine} className="card-premium p-4 sm:p-5">
+                <button
+                  onClick={() => toggle(engine)}
+                  className="flex items-center justify-between w-full text-left gap-3"
+                  aria-expanded={!isCollapsed}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
+                      <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={meta.iconPath} />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-[16px] text-foreground truncate">{meta.name}</h3>
+                      <p className="text-[12px] text-muted-foreground">
+                        {totalLeads.toLocaleString()} {totalLeads === 1 ? 'lead' : 'leads'} · {cols.length} {cols.length === 1 ? 'collection' : 'collections'}
+                      </p>
+                    </div>
+                  </div>
+                  <svg
+                    className={`w-5 h-5 text-muted-foreground transition-transform shrink-0 ${isCollapsed ? '' : 'rotate-180'}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {!isCollapsed && (
+                  <div className="mt-4 pt-4 border-t border-border grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {cols.map(col => (
+                      <div key={col.id} className="rounded-lg border border-border-light p-3 bg-muted/30 hover:bg-muted/60 transition-colors">
+                        <div className="flex items-center justify-between mb-2 gap-2">
+                          <span className="text-[11px] text-muted-foreground truncate">{col.created_at}</span>
+                          <span className="text-[12px] font-bold text-primary shrink-0">{col.lead_count} {col.lead_count === 1 ? 'lead' : 'leads'}</span>
+                        </div>
+                        <h4 className="font-semibold text-[14px] text-foreground truncate">{col.name}</h4>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <h3 className="font-semibold text-[15px] text-foreground mb-1 truncate">{col.name}</h3>
-              <p className="text-[13px] text-muted-foreground">{col.lead_count} leads</p>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

@@ -44,6 +44,15 @@ export interface Lead {
   platform?: string
   intent_text?: string
   validation_gates_passed?: number
+  // New engine-specific fields
+  rating?: number | null
+  review_count?: number | null
+  category?: string | null
+  ad_status?: string | null
+  aggregator_rating?: number | null
+  intent_level?: string | null
+  post_url?: string | null
+  author_username?: string | null
 }
 
 export interface SmartCollection {
