@@ -22,7 +22,7 @@ export function LandingPage() {
             <span className="font-semibold text-foreground tracking-tight">Bad Decision</span>
           </div>
           <div className="hidden md:flex items-center gap-8">
-            <Link href="/pricing" className="text-sm text-foreground hover:text-primary transition-colors">Pricing</Link>
+            <Link href="/pricing#pricing-table" className="text-sm text-foreground hover:text-primary transition-colors">Pricing</Link>
             <Link href="/faq" className="text-sm text-foreground hover:text-primary transition-colors">FAQ</Link>
             <a href="mailto:support@baddecision.ai" className="text-sm text-foreground hover:text-primary transition-colors">Contact</a>
           </div>
@@ -175,7 +175,7 @@ export function LandingPage() {
               <span className="text-card-foreground font-semibold">Bad Decision</span>
             </div>
             <div className="flex items-center gap-8">
-              <Link href="/pricing" className="text-card-foreground/70 hover:text-card-foreground text-sm transition-colors">Pricing</Link>
+              <Link href="/pricing#pricing-table" className="text-card-foreground/70 hover:text-card-foreground text-sm transition-colors">Pricing</Link>
               <Link href="/faq" className="text-card-foreground/70 hover:text-card-foreground text-sm transition-colors">FAQ</Link>
               <a href="mailto:support@baddecision.ai" className="text-card-foreground/70 hover:text-card-foreground text-sm transition-colors">Contact</a>
             </div>

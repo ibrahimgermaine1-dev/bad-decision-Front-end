@@ -42,7 +42,14 @@ export async function GET(req: NextRequest) {
       'Authorization': `Bearer ${serviceKey}`,
     }
 
-    // 1. Check if user has a credit_balances row
+    // 1. Call renew_free_credits RPC to check expiry + renew if needed
+    await fetch(`${supabaseUrl}/rest/v1/rpc/renew_free_credits`, {
+      method: 'POST',
+      headers: { ...sbHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_user_id: userId }),
+    })
+
+    // 2. Check if user has a credit_balances row
     const sbRes = await fetch(
       `${supabaseUrl}/rest/v1/credit_balances?select=credits_balance,credits_reserved,total_purchased&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
       { headers: sbHeaders }

@@ -36,7 +36,7 @@ export function Footer() {
             <h4 className="text-[12px] font-semibold text-card-foreground uppercase tracking-wider mb-4">Product</h4>
             <ul className="space-y-3">
               <li><Link href="/how-it-works" className="text-[14px] text-card-foreground/70 hover:text-primary transition-colors">How It Works</Link></li>
-              <li><Link href="/pricing" className="text-[14px] text-card-foreground/70 hover:text-primary transition-colors">Pricing</Link></li>
+              <li><Link href="/pricing#pricing-table" className="text-[14px] text-card-foreground/70 hover:text-primary transition-colors">Pricing</Link></li>
               <li><Link href="/dashboard" className="text-[14px] text-card-foreground/70 hover:text-primary transition-colors">Dashboard</Link></li>
               <li><Link href="/case-studies" className="text-[14px] text-card-foreground/70 hover:text-primary transition-colors">Results</Link></li>
             </ul>

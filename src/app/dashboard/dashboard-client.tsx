@@ -228,13 +228,13 @@ export function DashboardShell() {
       }
 
       if (typeof window !== 'undefined' && (window as any).PaystackPop) {
-        const reference = crypto.randomUUID()
-        console.log('[Payment] Starting Paystack payment:', { reference, amount: addon.priceKobo, email: user.primaryEmailAddress.emailAddress })
-        const handler = (window as any).PaystackPop.newTransaction({
-          reference,
+        const paystackRef = crypto.randomUUID()
+        console.log('[Payment] Starting Paystack payment:', { paystackRef, amount: addon.priceKobo, email: user.primaryEmailAddress.emailAddress })
+        const handler = (window as any).PaystackPop.setup({
+          ref: paystackRef,
           email: user.primaryEmailAddress.emailAddress,
           amount: addon.priceKobo,
-          publicKey,
+          key: publicKey,
           currency: 'NGN',
           metadata: {
             user_id: userId || '',
@@ -379,9 +379,13 @@ export function DashboardShell() {
               <div className="text-[11px] text-card-foreground/60 mt-0.5">{creditBalance.credits_reserved} reserved</div>
               <button
                 onClick={() => { setActiveView('credits'); setSidebarOpen(false) }}
-                className="w-full mt-2.5 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[12px] font-semibold transition-colors"
+                className={`w-full mt-2.5 py-2 rounded-lg text-[12px] font-bold transition-all ${
+                  creditBalance.credits_balance <= 0
+                    ? 'bg-destructive hover:bg-destructive/90 text-white animate-pulse shadow-lg shadow-destructive/30'
+                    : 'bg-primary hover:bg-primary/90 text-white shadow-sm'
+                }`}
               >
-                Get More Credits
+                {creditBalance.credits_balance <= 0 ? 'GET CREDITS NOW' : 'Get More Credits'}
               </button>
             </div>
           </div>
@@ -548,13 +552,17 @@ function SearchView({
   tier: string
 }) {
   const activeEngine = ENGINE_CARDS.find(e => e.id === selectedEngine)
-  const canSearch = selectedEngine && searchQuery.trim() && searchStatus !== 'processing'
-  const isLocked = (engineId: EngineType) => !isEngineAvailable(engineId, tier as TierId)
+  const hasNoCredits = creditBalance <= 0
+  const canSearch = selectedEngine && searchQuery.trim() && searchStatus !== 'processing' && !hasNoCredits
+  const isLocked = (engineId: EngineType) => !isEngineAvailable(engineId, tier as TierId) || hasNoCredits
 
   const handleEngineClick = (engineId: EngineType) => {
+    if (hasNoCredits) {
+      window.location.href = '/pricing#pricing-table'
+      return
+    }
     if (isLocked(engineId)) {
-      // Navigate to pricing page when clicking a locked engine
-      window.location.href = '/pricing'
+      window.location.href = '/pricing#pricing-table'
     } else {
       setSelectedEngine(engineId)
     }
@@ -567,6 +575,22 @@ function SearchView({
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">Find Real Buyers</h1>
         <p className="text-[14px] text-muted-foreground">Type what you want. Pick a location. Hit search. Get verified contacts.</p>
       </div>
+
+      {/* No Credits Warning */}
+      {hasNoCredits && (
+        <div className="rounded-xl bg-destructive/10 border border-destructive/30 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-center sm:text-left">
+            <h3 className="text-[16px] font-bold text-destructive mb-1">You are out of credits</h3>
+            <p className="text-[13px] text-muted-foreground">Upgrade your plan or buy more credits to keep finding leads.</p>
+          </div>
+          <a
+            href="/pricing#pricing-table"
+            className="px-6 py-3 rounded-xl bg-primary hover:bg-primary/90 text-white text-[14px] font-bold transition-all shadow-lg shadow-primary/30 whitespace-nowrap"
+          >
+            Get More Credits
+          </a>
+        </div>
+      )}
 
       {/* Engine Selection */}
       <div>
@@ -646,7 +670,7 @@ function SearchView({
                       <p className="text-[12px] text-muted-foreground">{engine.desc}</p>
                       {locked && (
                         <a
-                          href="/pricing"
+                          href="/pricing#pricing-table"
                           onClick={(e) => e.stopPropagation()}
                           className="inline-flex items-center gap-1 mt-2 text-[12px] font-semibold text-warning hover:text-warning/80 transition-colors"
                         >
@@ -698,7 +722,11 @@ function SearchView({
           <button
             onClick={onSearch}
             disabled={!canSearch}
-            className="w-full py-3.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-semibold text-[15px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
+            className={`w-full py-3.5 rounded-lg font-semibold text-[15px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg ${
+              hasNoCredits
+                ? 'bg-destructive/80 hover:bg-destructive text-white shadow-destructive/20'
+                : 'bg-primary hover:bg-primary/90 text-white shadow-primary/20'
+            }`}
           >
             {searchStatus === 'processing' ? (
               <span className="flex items-center justify-center gap-2">
@@ -707,6 +735,10 @@ function SearchView({
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                 </svg>
                 Searching...
+              </span>
+            ) : hasNoCredits ? (
+              <span className="flex items-center justify-center gap-2">
+                Out of Credits · Upgrade to Search
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
@@ -1559,7 +1591,7 @@ function CreditsView({
             Plans give you credits every month at a better price. Plus more search engines and higher daily limits.
           </p>
           <a
-            href="/pricing"
+            href="/pricing#pricing-table"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-card border border-border hover:border-primary/50 text-card-foreground text-[14px] font-semibold transition-colors"
           >
             View Plans

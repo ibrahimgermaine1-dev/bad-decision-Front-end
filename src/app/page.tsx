@@ -597,7 +597,7 @@ function PricingPreviewSection() {
         </div>
 
         <Link
-          href="/pricing"
+          href="/pricing#pricing-table"
           className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-primary hover:bg-primary/90 text-white text-base font-semibold transition-all shadow-lg shadow-primary/30"
         >
           See Full Pricing
@@ -692,7 +692,7 @@ function FinalCTASection() {
             Get My 50 Free Leads
           </Link>
           <Link
-            href="/pricing"
+            href="/pricing#pricing-table"
             className="w-full sm:w-auto px-10 py-4 rounded-xl bg-card border border-border hover:border-primary/50 text-card-foreground text-lg font-semibold transition-all"
           >
             View Plans

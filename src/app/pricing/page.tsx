@@ -48,11 +48,11 @@ export default function PricingPage() {
 
     try {
       if (typeof window !== 'undefined' && (window as any).PaystackPop) {
-        const handler = (window as any).PaystackPop.newTransaction({
-          reference: crypto.randomUUID(),
+        const handler = (window as any).PaystackPop.setup({
+          ref: crypto.randomUUID(),
           email: user?.primaryEmailAddress?.emailAddress || '',
           amount: selectedTier.priceKobo,
-          publicKey,
+          key: publicKey,
           currency: 'NGN',
           metadata: {
             user_id: userId || '',
@@ -142,7 +142,7 @@ export default function PricingPage() {
       )}
 
       {/* Pricing Grid */}
-      <section className="pb-20">
+      <section id="pricing-table" className="pb-20 scroll-mt-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {allTiers.map((plan) => {
