@@ -61,6 +61,7 @@ export interface Lead {
 
 export interface SmartCollection {
   id: string
+  task_id?: string
   name: string
   task_type: EngineType
   lead_count: number

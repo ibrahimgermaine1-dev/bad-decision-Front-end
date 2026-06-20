@@ -147,11 +147,9 @@ export async function fetchCollections(userId: string): Promise<SmartCollection[
 
     return (data || []).map((task: any) => ({
       id: task.id,
+      task_id: task.task_id || task.id,
       name: task.name || task.query || 'Untitled Search',
       task_type: (task.task_type || task.engine || 'ads_intent') as EngineType,
-      // The proxy already normalizes lead_count to a real number from the
-      // backend's smart_collections table. Trust it. We only fall back to 0
-      // if the field is genuinely missing (e.g. legacy data).
       lead_count: typeof task.lead_count === 'number' ? task.lead_count : Number(task.lead_count) || 0,
       created_at: task.created_at?.split('T')[0] || '',
     }))
