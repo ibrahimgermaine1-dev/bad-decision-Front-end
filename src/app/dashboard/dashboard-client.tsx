@@ -17,13 +17,29 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useAuth, useUser, useClerk } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Script from 'next/script'
-import { useAppStore, type EngineType, type Lead, type SmartCollection } from '@/stores/app-store'
+import { useAppStore, type EngineType, type Lead, type SmartCollection, type UserTier } from '@/stores/app-store'
 import { startSearch, pollUntilComplete, fetchCreditBalance, verifyPayment, fetchCollections } from '@/lib/api'
 import { CREDIT_ADDONS, type TierId, formatAddonPrice, isEngineAvailable } from '@/lib/pricing'
 import { LocationSelector } from '@/components/location-selector'
 import { exportLeadsToCsv, downloadCsv } from '@/lib/csv-shield'
 
-type DashView = 'search' | 'collections' | 'credits' | 'support'
+type DashView = 'search' | 'collections' | 'credits' | 'support' | 'messages' | 'settings'
+
+// ============================================================
+// OUTREACH COPYWRITING STYLES — mirrors backend enum
+// (dan_kennedy | donald_miller | ray_edwards | david_ogilvy |
+//  jay_abraham | gary_halbert)
+// ============================================================
+type CopywritingStyle = 'dan_kennedy' | 'donald_miller' | 'ray_edwards' | 'david_ogilvy' | 'jay_abraham' | 'gary_halbert'
+
+const COPYWRITING_STYLES: { id: CopywritingStyle; name: string; desc: string }[] = [
+  { id: 'david_ogilvy', name: 'David Ogilvy', desc: 'Classic, refined, research-driven storytelling.' },
+  { id: 'dan_kennedy', name: 'Dan Kennedy', desc: 'Direct response, no-nonsense, magnetic.' },
+  { id: 'donald_miller', name: 'Donald Miller', desc: 'StoryBrand — clear narrative, customer as hero.' },
+  { id: 'ray_edwards', name: 'Ray Edwards', desc: 'Inspiring, transformation-focused.' },
+  { id: 'jay_abraham', name: 'Jay Abraham', desc: 'Strategy-rich, leverage-focused, opportunity-driven.' },
+  { id: 'gary_halbert', name: 'Gary Halbert', desc: 'Punchy, provocative, mail-order classic.' },
+]
 
 const ENGINE_CARDS = [
   {
@@ -64,7 +80,7 @@ export function DashboardShell() {
 
   const {
     creditBalance, setCreditBalance,
-    tier,
+    tier, setTier,
     userCountry,
     collections, setCollections,
   } = useAppStore()
@@ -83,8 +99,12 @@ export function DashboardShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [paymentProcessing, setPaymentProcessing] = useState(false)
   const [paymentError, setPaymentError] = useState('')
+  // Tracks whether the initial profile + balance fetch has finished.
+  // Until it has, we render a full-screen spinner so the user never sees
+  // a flash of "0 credits / free tier" before real data arrives.
+  const [dashboardLoaded, setDashboardLoaded] = useState(false)
 
-  // ===== FETCH CREDIT BALANCE ON MOUNT =====
+  // ===== FETCH CREDIT BALANCE =====
   const loadBalance = useCallback(async () => {
     if (!userId) return
     try {
@@ -99,13 +119,39 @@ export function DashboardShell() {
     }
   }, [userId, setCreditBalance])
 
+  // ===== FETCH USER PROFILE (sets the real tier — fixes engine locking for paid users) =====
+  const loadProfile = useCallback(async () => {
+    if (!userId) return
+    try {
+      const res = await fetch('/api/backend/profile')
+      if (!res.ok) return
+      const data = await res.json()
+      const profileTier = data?.profile?.tier
+      if (profileTier) {
+        // Coerce to UserTier — backend may return unknown strings, in which case we fall back to 'free'.
+        const validTiers: UserTier[] = ['free', 'starter', 'growth', 'pro']
+        const safeTier = (validTiers as string[]).includes(profileTier) ? (profileTier as UserTier) : 'free'
+        setTier(safeTier)
+      }
+    } catch (err) {
+      console.warn('[Dashboard] Failed to fetch profile:', err)
+    }
+  }, [userId, setTier])
+
+  // ===== ON MOUNT: redirect if not signed in, otherwise load balance + profile in parallel =====
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
       router.replace('/sign-in')
       return
     }
-    loadBalance()
-  }, [isLoaded, isSignedIn, router, loadBalance])
+    if (!isLoaded || !isSignedIn) return
+
+    let cancelled = false
+    Promise.allSettled([loadBalance(), loadProfile()]).finally(() => {
+      if (!cancelled) setDashboardLoaded(true)
+    })
+    return () => { cancelled = true }
+  }, [isLoaded, isSignedIn, router, loadBalance, loadProfile])
 
   // ===== FETCH COLLECTIONS =====
   useEffect(() => {
@@ -299,10 +345,20 @@ export function DashboardShell() {
   }
 
   // ===== LOADING STATE =====
-  if (!isLoaded) {
+  // Covers three cases with one screen:
+  //   1. Clerk hasn't finished loading yet
+  //   2. User isn't signed in (we're redirecting to /sign-in — never flash the dashboard)
+  //   3. User is signed in but we haven't finished fetching their profile + balance
+  if (!isLoaded || !isSignedIn || !dashboardLoaded) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground text-lg">Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <svg className="animate-spin w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <div className="text-muted-foreground text-lg">Loading your dashboard...</div>
+        </div>
       </div>
     )
   }
@@ -412,6 +468,18 @@ export function DashboardShell() {
               onClick={() => { setActiveView('credits'); setSidebarOpen(false) }}
             />
             <NavItem
+              icon="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+              label="Messages"
+              active={activeView === 'messages'}
+              onClick={() => { setActiveView('messages'); setSidebarOpen(false) }}
+            />
+            <NavItem
+              icon="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              label="Settings"
+              active={activeView === 'settings'}
+              onClick={() => { setActiveView('settings'); setSidebarOpen(false) }}
+            />
+            <NavItem
               icon="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"
               label="Support"
               active={activeView === 'support'}
@@ -482,6 +550,12 @@ export function DashboardShell() {
               paymentError={paymentError}
               userCountry={userCountry}
             />
+          )}
+          {activeView === 'messages' && (
+            <MessagesView />
+          )}
+          {activeView === 'settings' && (
+            <SettingsView tier={tier} />
           )}
           {activeView === 'support' && (
             <SupportView />
@@ -1403,6 +1477,12 @@ const ENGINE_ORDER: EngineType[] = ['smb_maps', 'ads_intent', 'web_absent', 'soc
 
 function CollectionsView({ collections }: { collections: SmartCollection[] }) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  // Detail-view state — when a collection is clicked we fetch its leads and
+  // render them via the same ResultsView component used for fresh searches.
+  const [selectedCollection, setSelectedCollection] = useState<SmartCollection | null>(null)
+  const [detailLeads, setDetailLeads] = useState<Lead[]>([])
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState('')
 
   const grouped = useMemo(() => {
     const groups: Record<EngineType, SmartCollection[]> = {
@@ -1423,11 +1503,124 @@ function CollectionsView({ collections }: { collections: SmartCollection[] }) {
     setCollapsed(prev => ({ ...prev, [engine]: !prev[engine] }))
   }
 
+  // Fetch leads for a collection's task_id from our backend proxy.
+  // Backend endpoint: GET /api/leads/{task_id} — proxied at /api/backend/leads?task_id=xxx
+  const handleViewCollection = useCallback(async (col: SmartCollection) => {
+    setSelectedCollection(col)
+    setDetailLeads([])
+    setDetailError('')
+    setDetailLoading(true)
+    try {
+      const res = await fetch(`/api/backend/leads?task_id=${encodeURIComponent(col.id)}`, {
+        method: 'GET',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data?.error || data?.detail || `Failed to load leads (${res.status})`)
+      }
+      setDetailLeads(Array.isArray(data.leads) ? data.leads : [])
+    } catch (err: any) {
+      console.error('[Collections] Failed to load leads:', err)
+      setDetailError(err.message || 'Failed to load leads. Please try again.')
+    } finally {
+      setDetailLoading(false)
+    }
+  }, [])
+
+  const handleBackToList = () => {
+    setSelectedCollection(null)
+    setDetailLeads([])
+    setDetailError('')
+  }
+
+  // ============================================================
+  // DETAIL VIEW — reuse ResultsView to render a collection's leads
+  // ============================================================
+  if (selectedCollection) {
+    const meta = ENGINE_META[selectedCollection.task_type] || ENGINE_META.ads_intent
+    return (
+      <div className="space-y-5">
+        <button
+          onClick={handleBackToList}
+          className="inline-flex items-center gap-2 text-[13px] font-semibold text-primary hover:text-primary/80 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to Collections
+        </button>
+
+        <div className="card-premium p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={meta.iconPath} />
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">{selectedCollection.name}</h1>
+              <p className="text-[12px] text-muted-foreground">
+                {meta.name} · {selectedCollection.created_at} · {selectedCollection.lead_count} {selectedCollection.lead_count === 1 ? 'lead' : 'leads'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {detailLoading && (
+          <div className="card-premium p-8 flex flex-col items-center justify-center gap-3">
+            <svg className="animate-spin w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            <p className="text-[14px] text-muted-foreground">Loading your leads...</p>
+          </div>
+        )}
+
+        {!detailLoading && detailError && (
+          <div className="card-premium p-8 text-center border-destructive/20">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-destructive/10 border border-destructive/20 mb-4">
+              <svg className="w-7 h-7 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-foreground mb-2">Could not load leads.</h3>
+            <p className="text-[14px] text-muted-foreground mb-4">{detailError}</p>
+            <button
+              onClick={() => handleViewCollection(selectedCollection)}
+              className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[14px] font-semibold transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {!detailLoading && !detailError && detailLeads.length === 0 && (
+          <div className="card-premium p-8 text-center">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-muted border border-border mb-4">
+              <svg className="w-7 h-7 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-foreground mb-2">No leads in this collection.</h3>
+            <p className="text-[14px] text-muted-foreground">The search may have completed without storing leads. Try running a new search.</p>
+          </div>
+        )}
+
+        {!detailLoading && !detailError && detailLeads.length > 0 && (
+          <ResultsView leads={detailLeads} engineType={selectedCollection.task_type} />
+        )}
+      </div>
+    )
+  }
+
+  // ============================================================
+  // LIST VIEW — grouped by engine, each collection clickable
+  // ============================================================
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">Your Collections</h1>
-        <p className="text-[14px] text-muted-foreground">Every search you run gets saved here, grouped by engine type.</p>
+        <p className="text-[14px] text-muted-foreground">Every search you run gets saved here. Click any collection to view its leads.</p>
       </div>
 
       {collections.length === 0 ? (
@@ -1482,13 +1675,25 @@ function CollectionsView({ collections }: { collections: SmartCollection[] }) {
                 {!isCollapsed && (
                   <div className="mt-4 pt-4 border-t border-border grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {cols.map(col => (
-                      <div key={col.id} className="rounded-lg border border-border-light p-3 bg-muted/30 hover:bg-muted/60 transition-colors">
+                      <button
+                        key={col.id}
+                        onClick={() => handleViewCollection(col)}
+                        className="text-left rounded-lg border border-border-light p-3 bg-muted/30 hover:bg-muted/60 hover:border-primary/40 transition-all group cursor-pointer"
+                      >
                         <div className="flex items-center justify-between mb-2 gap-2">
                           <span className="text-[11px] text-muted-foreground truncate">{col.created_at}</span>
                           <span className="text-[12px] font-bold text-primary shrink-0">{col.lead_count} {col.lead_count === 1 ? 'lead' : 'leads'}</span>
                         </div>
-                        <h4 className="font-semibold text-[14px] text-foreground truncate">{col.name}</h4>
-                      </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="font-semibold text-[14px] text-foreground truncate flex-1">{col.name}</h4>
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            View
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                            </svg>
+                          </span>
+                        </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -1514,6 +1719,10 @@ function CreditsView({
   paymentError: string
   userCountry: string
 }) {
+  // Free users cannot buy credit add-ons — they must upgrade to a paid plan first.
+  // Paid users (starter/growth/pro) see the buy buttons normally.
+  const isFreeTier = tier === 'free'
+
   return (
     <div className="space-y-6">
       <div>
@@ -1555,40 +1764,67 @@ function CreditsView({
         </div>
       )}
 
-      {/* Buy Credits */}
-      <div>
-        <h2 className="text-lg font-bold text-foreground mb-3">Buy More Credits</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {CREDIT_ADDONS.map(addon => (
-            <div key={addon.id} className="card-premium p-5 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-muted border border-border flex items-center justify-center mx-auto mb-3">
-                <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                </svg>
-              </div>
-              <div className="text-2xl font-bold text-gradient-violet">{addon.credits.toLocaleString()}</div>
-              <div className="text-[12px] text-muted-foreground mb-3">credits</div>
-              <div className="text-lg font-bold text-foreground mb-4">
-                {formatAddonPrice(addon, userCountry)}
-              </div>
-              <button
-                onClick={() => onBuyCredits(addon)}
-                disabled={paymentProcessing}
-                className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[13px] font-semibold transition-colors disabled:opacity-50"
-              >
-                {paymentProcessing ? 'Please wait...' : 'Buy Now'}
-              </button>
+      {/* Free-tier gate — block credit purchases until the user upgrades */}
+      {isFreeTier && (
+        <div className="rounded-xl bg-warning/10 border border-warning/30 p-5 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-center sm:text-left">
+            <div className="flex items-center gap-2 mb-1.5 justify-center sm:justify-start">
+              <svg className="w-5 h-5 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <h3 className="text-[16px] font-bold text-warning">Paid plan required to buy credits</h3>
             </div>
-          ))}
+            <p className="text-[13px] text-muted-foreground max-w-md">
+              You need a paid plan to buy credits. Upgrade to unlock credit purchases and all four search engines.
+            </p>
+          </div>
+          <a
+            href="/pricing#pricing-table"
+            className="px-6 py-3 rounded-xl bg-primary hover:bg-primary/90 text-white text-[14px] font-bold transition-all shadow-lg shadow-primary/30 whitespace-nowrap"
+          >
+            Upgrade Now
+          </a>
         </div>
-      </div>
+      )}
 
-      {/* Upgrade Plan */}
+      {/* Buy Credits — hidden for free users (they must upgrade first) */}
+      {!isFreeTier && (
+        <div>
+          <h2 className="text-lg font-bold text-foreground mb-3">Buy More Credits</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {CREDIT_ADDONS.map(addon => (
+              <div key={addon.id} className="card-premium p-5 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-muted border border-border flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                </div>
+                <div className="text-2xl font-bold text-gradient-violet">{addon.credits.toLocaleString()}</div>
+                <div className="text-[12px] text-muted-foreground mb-3">credits</div>
+                <div className="text-lg font-bold text-foreground mb-4">
+                  {formatAddonPrice(addon, userCountry)}
+                </div>
+                <button
+                  onClick={() => onBuyCredits(addon)}
+                  disabled={paymentProcessing}
+                  className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[13px] font-semibold transition-colors disabled:opacity-50"
+                >
+                  {paymentProcessing ? 'Please wait...' : 'Buy Now'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Upgrade Plan — always visible; for free users this is the primary CTA */}
       <div>
-        <h2 className="text-lg font-bold text-foreground mb-3">Or Upgrade Your Plan</h2>
+        <h2 className="text-lg font-bold text-foreground mb-3">{isFreeTier ? 'Upgrade Your Plan' : 'Or Upgrade Your Plan'}</h2>
         <div className="card-premium p-5">
           <p className="text-[14px] text-muted-foreground mb-4">
-            Plans give you credits every month at a better price. Plus more search engines and higher daily limits.
+            {isFreeTier
+              ? 'Plans give you credits every month, access to all four search engines, and the ability to buy more credits whenever you need them.'
+              : 'Plans give you credits every month at a better price. Plus more search engines and higher daily limits.'}
           </p>
           <a
             href="/pricing#pricing-table"
@@ -1664,6 +1900,297 @@ function SupportView() {
             <p className="text-[14px] text-muted-foreground">Send your pitch the same day you get leads. Fresh contacts respond better.</p>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// OUTREACH SETTINGS FORM — shared by MessagesView and SettingsView
+// Fetches + saves the user's service offering, target audience, and
+// copywriting style via /api/backend/settings (proxied to backend
+// GET/PUT /api/settings/{user_id}).
+// ============================================================
+function OutreachSettingsForm({ onSaved }: { onSaved?: () => void }) {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [userService, setUserService] = useState('')
+  const [targetAudience, setTargetAudience] = useState('')
+  const [style, setStyle] = useState<CopywritingStyle>('david_ogilvy')
+  const [error, setError] = useState('')
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/backend/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return
+        if (data?.settings) {
+          setUserService(data.settings.user_service || '')
+          setTargetAudience(data.settings.target_audience || '')
+          const s = data.settings.copywriting_style
+          setStyle(
+            COPYWRITING_STYLES.some(c => c.id === s) ? (s as CopywritingStyle) : 'david_ogilvy'
+          )
+        }
+      })
+      .catch(err => {
+        console.warn('[OutreachSettings] Failed to load:', err)
+        setError('Could not load your current settings.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError('')
+    setSavedAt(null)
+    try {
+      const res = await fetch('/api/backend/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_service: userService,
+          target_audience: targetAudience,
+          copywriting_style: style,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data?.error || `Failed to save (${res.status})`)
+      }
+      setSavedAt(Date.now())
+      onSaved?.()
+    } catch (err: any) {
+      setError(err.message || 'Failed to save settings.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="card-premium p-8 flex flex-col items-center justify-center gap-3">
+        <svg className="animate-spin w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <p className="text-[14px] text-muted-foreground">Loading your outreach settings...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card-premium p-5 space-y-4">
+      {/* Service offering */}
+      <div>
+        <label className="block text-[12px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
+          What do you sell?
+        </label>
+        <textarea
+          value={userService}
+          onChange={(e) => setUserService(e.target.value)}
+          rows={3}
+          placeholder="e.g. We build high-converting websites for roofers and home service businesses."
+          className="w-full px-4 py-3 rounded-lg bg-input border border-border focus:border-primary text-foreground text-[14px] outline-none transition-colors resize-none"
+        />
+        <p className="text-[11px] text-muted-foreground mt-1">
+          Describe your service clearly. This gets used to personalize every outreach message.
+        </p>
+      </div>
+
+      {/* Target audience */}
+      <div>
+        <label className="block text-[12px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
+          Who is your target audience?
+        </label>
+        <textarea
+          value={targetAudience}
+          onChange={(e) => setTargetAudience(e.target.value)}
+          rows={3}
+          placeholder="e.g. Roofing companies in the US doing $500k+ in revenue, owners who handle sales themselves."
+          className="w-full px-4 py-3 rounded-lg bg-input border border-border focus:border-primary text-foreground text-[14px] outline-none transition-colors resize-none"
+        />
+        <p className="text-[11px] text-muted-foreground mt-1">
+          Be specific. The more you narrow it down, the sharper your messages will be.
+        </p>
+      </div>
+
+      {/* Copywriting style */}
+      <div>
+        <label className="block text-[12px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
+          Copywriting style
+        </label>
+        <select
+          value={style}
+          onChange={(e) => setStyle(e.target.value as CopywritingStyle)}
+          className="w-full px-4 py-3 rounded-lg bg-input border border-border focus:border-primary text-foreground text-[14px] outline-none transition-colors"
+        >
+          {COPYWRITING_STYLES.map(s => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+        <p className="text-[11px] text-muted-foreground mt-1">
+          {COPYWRITING_STYLES.find(s => s.id === style)?.desc || 'Pick the voice that matches your brand.'}
+        </p>
+      </div>
+
+      {error && (
+        <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3">
+          <p className="text-[13px] text-destructive">{error}</p>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+        <div className="text-[12px] text-muted-foreground">
+          {savedAt ? (
+            <span className="text-success font-semibold inline-flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Saved
+            </span>
+          ) : (
+            <span>Changes save when you click the button.</span>
+          )}
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="px-5 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[13px] font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+        >
+          {saving ? (
+            <>
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Saving...
+            </>
+          ) : (
+            'Save Settings'
+          )}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// MESSAGES VIEW — outreach-focused settings + how-to tips
+// ============================================================
+function MessagesView() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">Messages</h1>
+        <p className="text-[14px] text-muted-foreground">
+          Configure how your outreach messages are written. We use these settings to personalize every message generated for your leads.
+        </p>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-bold text-foreground mb-3">Your Outreach Defaults</h2>
+        <OutreachSettingsForm />
+      </div>
+
+      {/* Tips */}
+      <div className="card-premium p-6">
+        <h3 className="text-lg font-bold text-foreground mb-3">How to use outreach messages</h3>
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
+            <span className="text-primary font-bold flex-shrink-0">1.</span>
+            <p className="text-[14px] text-muted-foreground">
+              Fill out your service offering and target audience above. The more specific you are, the more personalized your messages will be.
+            </p>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-primary font-bold flex-shrink-0">2.</span>
+            <p className="text-[14px] text-muted-foreground">
+              Pick a copywriting style that matches your brand voice. You can change it anytime — every new message uses your current style.
+            </p>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-primary font-bold flex-shrink-0">3.</span>
+            <p className="text-[14px] text-muted-foreground">
+              Run a search, then click &ldquo;Generate Messages&rdquo; on any lead card. We&rsquo;ll write 3 personalized openers using your settings.
+            </p>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-primary font-bold flex-shrink-0">4.</span>
+            <p className="text-[14px] text-muted-foreground">
+              Always edit the generated messages before sending. They&rsquo;re a strong starting point — not a final draft. Add specifics about the lead to make them feel hand-written.
+            </p>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-primary font-bold flex-shrink-0">5.</span>
+            <p className="text-[14px] text-muted-foreground">
+              Test different styles against the same audience. Your conversion rate will tell you which voice resonates best.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// SETTINGS VIEW — account info + outreach defaults
+// ============================================================
+function SettingsView({ tier }: { tier: string }) {
+  const { user } = useUser()
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">Settings</h1>
+        <p className="text-[14px] text-muted-foreground">Manage your account and outreach defaults.</p>
+      </div>
+
+      {/* Account info */}
+      <div className="card-premium p-5">
+        <h3 className="text-[14px] font-bold text-foreground uppercase tracking-wide mb-3">Account</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wide mb-1">Email</div>
+            <div className="text-[14px] text-foreground truncate">
+              {user?.primaryEmailAddress?.emailAddress || 'Not available'}
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wide mb-1">Name</div>
+            <div className="text-[14px] text-foreground truncate">
+              {user?.firstName || user?.fullName || 'Not set'}
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wide mb-1">Plan</div>
+            <div className="text-[14px] text-primary font-semibold uppercase">{tier}</div>
+          </div>
+        </div>
+        <div className="mt-4 pt-4 border-t border-border">
+          <a
+            href="/pricing#pricing-table"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border hover:border-primary/50 text-card-foreground text-[13px] font-semibold transition-colors"
+          >
+            {tier === 'free' ? 'Upgrade Plan' : 'View Plans'}
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      {/* Outreach defaults */}
+      <div>
+        <h2 className="text-lg font-bold text-foreground mb-3">Outreach Defaults</h2>
+        <p className="text-[14px] text-muted-foreground mb-4">
+          These defaults are used every time we generate outreach messages for your leads. Update them whenever your offer or audience changes.
+        </p>
+        <OutreachSettingsForm />
       </div>
     </div>
   )

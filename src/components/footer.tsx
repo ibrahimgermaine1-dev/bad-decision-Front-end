@@ -4,10 +4,21 @@
  * Footer — Dark teal, multi-column, readable.
  * Uses text-card-foreground (light text) directly instead of text-muted-foreground
  * (which is dark and would be invisible on the dark teal background).
+ *
+ * Auth-aware: the "Dashboard" link is only shown when a user is signed in
+ * (via Clerk's useAuth()). Anonymous visitors shouldn't see a link to a
+ * protected page that just bounces them to /sign-in.
  */
 import Link from 'next/link'
+import { useAuth } from '@clerk/nextjs'
 
 export function Footer() {
+  const { isSignedIn, isLoaded } = useAuth()
+
+  // Only render the Dashboard link once Clerk has loaded AND the user is signed in.
+  // While Clerk is still loading we hide it too — better than showing then hiding.
+  const showDashboard = isLoaded && isSignedIn
+
   return (
     <footer className="bg-card border-t border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -37,7 +48,9 @@ export function Footer() {
             <ul className="space-y-3">
               <li><Link href="/how-it-works" className="text-[14px] text-card-foreground/70 hover:text-primary transition-colors">How It Works</Link></li>
               <li><Link href="/pricing#pricing-table" className="text-[14px] text-card-foreground/70 hover:text-primary transition-colors">Pricing</Link></li>
-              <li><Link href="/dashboard" className="text-[14px] text-card-foreground/70 hover:text-primary transition-colors">Dashboard</Link></li>
+              {showDashboard && (
+                <li><Link href="/dashboard" className="text-[14px] text-card-foreground/70 hover:text-primary transition-colors">Dashboard</Link></li>
+              )}
               <li><Link href="/case-studies" className="text-[14px] text-card-foreground/70 hover:text-primary transition-colors">Results</Link></li>
             </ul>
           </div>
