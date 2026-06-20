@@ -99,6 +99,7 @@ export function DashboardShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [paymentProcessing, setPaymentProcessing] = useState(false)
   const [paymentError, setPaymentError] = useState('')
+  const [taskId, setTaskId] = useState<string | undefined>(undefined)
   // Tracks whether the initial profile + balance fetch has finished.
   // Until it has, we render a full-screen spinner so the user never sees
   // a flash of "0 credits / free tier" before real data arrives.
@@ -137,6 +138,28 @@ export function DashboardShell() {
       console.warn('[Dashboard] Failed to fetch profile:', err)
     }
   }, [userId, setTier])
+
+  // ===== RELOAD LEADS for the current task — used after batch outreach generation =====
+  // After "Write Messages for All" completes, the backend has updated each lead's
+  // outreach_email/social/call fields, but our local `leads` state is stale.
+  // Re-fetching via /api/backend/leads?task_id=xxx returns the freshly-saved messages
+  // so each lead card immediately shows them instead of the empty "Write" button.
+  const reloadLeads = useCallback(async (taskUuid?: string) => {
+    const effectiveTaskId = taskUuid || taskId
+    if (!effectiveTaskId) return
+    try {
+      const res = await fetch(`/api/backend/leads?task_id=${encodeURIComponent(effectiveTaskId)}`, {
+        method: 'GET',
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (Array.isArray(data.leads)) {
+        setLeads(data.leads)
+      }
+    } catch (err) {
+      console.warn('[Dashboard] Failed to reload leads after batch outreach:', err)
+    }
+  }, [taskId, setLeads])
 
   // ===== ON MOUNT: redirect if not signed in, otherwise load balance + profile in parallel =====
   useEffect(() => {
@@ -196,6 +219,9 @@ export function DashboardShell() {
       if (!searchResult.task_id) {
         throw new Error(searchResult.message || searchResult.detail || 'No task ID returned')
       }
+
+      // Store the task_id so ResultsView can use it for "Write Messages for All"
+      setTaskId(searchResult.task_id)
 
       const finalStatus = await pollUntilComplete(
         searchResult.task_id,
@@ -536,6 +562,8 @@ export function DashboardShell() {
               onSearch={handleSearch}
               creditBalance={creditBalance.credits_balance}
               tier={tier}
+              taskId={taskId}
+              onLeadsUpdated={() => { reloadLeads(); loadBalance() }}
             />
           )}
           {activeView === 'collections' && (
@@ -606,7 +634,8 @@ function SearchView({
   searchQuery, setSearchQuery,
   selectedCountry, setSelectedCountry,
   selectedState, setSelectedState,
-  searchStatus, searchError, leads, progress, currentStep, onSearch, creditBalance, tier
+  searchStatus, searchError, leads, progress, currentStep, onSearch, creditBalance, tier,
+  taskId, onLeadsUpdated
 }: {
   selectedEngine: EngineType | null
   setSelectedEngine: (e: EngineType | null) => void
@@ -624,6 +653,8 @@ function SearchView({
   onSearch: () => void
   creditBalance: number
   tier: string
+  taskId?: string
+  onLeadsUpdated?: () => void
 }) {
   const activeEngine = ENGINE_CARDS.find(e => e.id === selectedEngine)
   const hasNoCredits = creditBalance <= 0
@@ -859,7 +890,7 @@ function SearchView({
 
       {/* Results */}
       {searchStatus === 'completed' && (
-        <ResultsView leads={leads} engineType={selectedEngine} />
+        <ResultsView leads={leads} engineType={selectedEngine} taskId={taskId} onLeadsUpdated={onLeadsUpdated} />
       )}
 
       {searchStatus === 'exhausted' && (
@@ -901,12 +932,38 @@ function SearchView({
 // ============================================================
 // RESULTS VIEW — engine-specific layouts
 // ============================================================
-function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineType | null }) {
+function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lead[], engineType: EngineType | null, taskId?: string, onLeadsUpdated?: () => void }) {
   const [sortBy, setSortBy] = useState<string>('default')
+  const [batchLoading, setBatchLoading] = useState(false)
+  const [batchResult, setBatchResult] = useState('')
 
   const handleExport = () => {
     const csv = exportLeadsToCsv(leads, engineType || undefined)
     downloadCsv(csv, `bad-decision-leads-${Date.now()}.csv`)
+  }
+
+  const handleBatchOutreach = async () => {
+    if (!taskId) return
+    setBatchLoading(true)
+    setBatchResult('')
+    try {
+      const res = await fetch('/api/backend/outreach-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setBatchResult(`Done! Generated messages for ${data.generated} out of ${data.total_leads} leads.`)
+        onLeadsUpdated?.()
+      } else {
+        setBatchResult(data.detail || data.error || 'Failed to generate messages.')
+      }
+    } catch (err: any) {
+      setBatchResult(err.message || 'Something went wrong.')
+    } finally {
+      setBatchLoading(false)
+    }
   }
 
   const sortedLeads = useMemo(() => {
@@ -948,6 +1005,39 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
       Export CSV
     </button>
   )
+
+  const renderBatchBtn = () => {
+    if (!taskId) return null
+    return (
+      <button
+        onClick={handleBatchOutreach}
+        disabled={batchLoading}
+        className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[13px] font-semibold transition-colors disabled:opacity-50"
+      >
+        {batchLoading ? (
+          <>
+            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            Writing messages...
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Write Messages for All
+          </>
+        )}
+      </button>
+    )
+  }
+
+  const renderBatchResult = () => {
+    if (!batchResult) return null
+    return <span className="text-[12px] text-muted-foreground">{batchResult}</span>
+  }
 
   const renderSortBtn = (value: string, label: string) => (
     <button
@@ -1107,7 +1197,11 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
             </h2>
             <p className="text-[13px] text-muted-foreground">Shops, clinics, and offices ready to contact.</p>
           </div>
-          {renderExportBtn()}
+          <div className="flex items-center gap-2 flex-wrap">
+            {renderExportBtn()}
+            {renderBatchBtn()}
+            {renderBatchResult()}
+          </div>
         </div>
         {renderSortBar([
           { value: 'rating', label: 'Rating' },
@@ -1199,7 +1293,11 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
             </h2>
             <p className="text-[13px] text-muted-foreground">Companies actively spending on ads right now.</p>
           </div>
-          {renderExportBtn()}
+          <div className="flex items-center gap-2 flex-wrap">
+            {renderExportBtn()}
+            {renderBatchBtn()}
+            {renderBatchResult()}
+          </div>
         </div>
         {renderSortBar([
           { value: 'platform', label: 'Platform' },
@@ -1287,7 +1385,11 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
             </h2>
             <p className="text-[13px] text-muted-foreground">Listed on aggregators but missing a website — easy wins.</p>
           </div>
-          {renderExportBtn()}
+          <div className="flex items-center gap-2 flex-wrap">
+            {renderExportBtn()}
+            {renderBatchBtn()}
+            {renderBatchResult()}
+          </div>
         </div>
         {renderSortBar([
           { value: 'rating', label: 'Rating' },
@@ -1367,7 +1469,11 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
             </h2>
             <p className="text-[13px] text-muted-foreground">Real people posting about problems you can solve.</p>
           </div>
-          {renderExportBtn()}
+          <div className="flex items-center gap-2 flex-wrap">
+            {renderExportBtn()}
+            {renderBatchBtn()}
+            {renderBatchResult()}
+          </div>
         </div>
         {renderSortBar([
           { value: 'intent', label: 'Intent Level' },
@@ -1436,7 +1542,11 @@ function ResultsView({ leads, engineType }: { leads: Lead[], engineType: EngineT
           </h2>
           <p className="text-[13px] text-muted-foreground">Every email has been tested. Send your pitch with confidence.</p>
         </div>
-        {renderExportBtn()}
+        <div className="flex items-center gap-2 flex-wrap">
+          {renderExportBtn()}
+          {renderBatchBtn()}
+          {renderBatchResult()}
+        </div>
       </div>
       <div className="grid grid-cols-1 gap-3">
         {sortedLeads.map((lead, i) => (
@@ -1536,6 +1646,25 @@ function CollectionsView({ collections }: { collections: SmartCollection[] }) {
     setDetailError('')
   }
 
+  // Re-fetch leads for the currently-open collection. Used after batch outreach
+  // generation so each lead card flips from "Write Outreach Messages" to showing
+  // the freshly-saved messages without requiring a manual reload.
+  const reloadDetailLeads = useCallback(async () => {
+    if (!selectedCollection) return
+    try {
+      const res = await fetch(`/api/backend/leads?task_id=${encodeURIComponent(selectedCollection.task_id || selectedCollection.id)}`, {
+        method: 'GET',
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (Array.isArray(data.leads)) {
+        setDetailLeads(data.leads)
+      }
+    } catch (err) {
+      console.warn('[Collections] Failed to reload leads after batch outreach:', err)
+    }
+  }, [selectedCollection])
+
   // ============================================================
   // DETAIL VIEW — reuse ResultsView to render a collection's leads
   // ============================================================
@@ -1610,7 +1739,7 @@ function CollectionsView({ collections }: { collections: SmartCollection[] }) {
         )}
 
         {!detailLoading && !detailError && detailLeads.length > 0 && (
-          <ResultsView leads={detailLeads} engineType={selectedCollection.task_type} />
+          <ResultsView leads={detailLeads} engineType={selectedCollection.task_type} taskId={selectedCollection.task_id || selectedCollection.id} onLeadsUpdated={reloadDetailLeads} />
         )}
       </div>
     )
