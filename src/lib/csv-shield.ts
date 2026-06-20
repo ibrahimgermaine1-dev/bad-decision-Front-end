@@ -22,6 +22,13 @@ export interface ExportableLead {
   aggregator_url?: string
   platform?: string
   intent_text?: string
+  rating?: number | null
+  review_count?: number | null
+  category?: string | null
+  // Outreach messages
+  outreach_email?: string | null
+  outreach_social?: string | null
+  outreach_call?: string | null
 }
 
 /**
@@ -37,9 +44,10 @@ function shieldPhone(phone: string): string {
 }
 
 /**
- * Convert ABSENT to empty string for cleaner CSV display
+ * Convert ABSENT to empty string for cleaner CSV display.
+ * Accepts `null | undefined` because optional lead fields use both.
  */
-function cleanAbsent(val: string | undefined): string {
+function cleanAbsent(val: string | null | undefined): string {
   if (!val || val === 'ABSENT') return ''
   return val
 }
@@ -74,11 +82,14 @@ export function exportLeadsToCsv(leads: ExportableLead[], engineType?: string): 
 
   let extraHeaders: string[] = []
   if (engineType === 'ads_intent') extraHeaders = ['Ad Platform']
-  if (engineType === 'smb_maps') extraHeaders = ['Address']
+  if (engineType === 'smb_maps') extraHeaders = ['Address', 'Rating', 'Review Count', 'Category']
   if (engineType === 'web_absent') extraHeaders = ['Aggregator Source', 'Aggregator URL']
   if (engineType === 'social_intent') extraHeaders = ['Platform', 'Intent Text']
 
-  const headers = [...baseHeaders, ...extraHeaders]
+  // Always include outreach message columns
+  const outreachHeaders = ['Outreach Email', 'Outreach Social', 'Outreach Call']
+
+  const headers = [...baseHeaders, ...extraHeaders, ...outreachHeaders]
 
   const rows = leads.map((lead) => {
     const baseRow = [
@@ -95,11 +106,17 @@ export function exportLeadsToCsv(leads: ExportableLead[], engineType?: string): 
 
     let extraRow: string[] = []
     if (engineType === 'ads_intent') extraRow = [cleanAbsent(lead.ad_platform)]
-    if (engineType === 'smb_maps') extraRow = [cleanAbsent(lead.address)]
+    if (engineType === 'smb_maps') extraRow = [cleanAbsent(lead.address), lead.rating ? String(lead.rating) : '', lead.review_count ? String(lead.review_count) : '', cleanAbsent(lead.category)]
     if (engineType === 'web_absent') extraRow = [cleanAbsent(lead.aggregator_source), cleanAbsent(lead.aggregator_url)]
     if (engineType === 'social_intent') extraRow = [cleanAbsent(lead.platform), cleanAbsent(lead.intent_text)]
 
-    return [...baseRow, ...extraRow].map(escapeCsvField).join(',')
+    const outreachRow = [
+      cleanAbsent(lead.outreach_email),
+      cleanAbsent(lead.outreach_social),
+      cleanAbsent(lead.outreach_call),
+    ]
+
+    return [...baseRow, ...extraRow, ...outreachRow].map(escapeCsvField).join(',')
   })
 
   return [headers.join(','), ...rows].join('\n')

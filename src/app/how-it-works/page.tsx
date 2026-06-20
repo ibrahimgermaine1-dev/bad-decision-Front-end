@@ -179,13 +179,13 @@ export default function HowItWorksPage() {
             Ready to try it yourself?
           </h2>
           <p className="text-lg text-muted-foreground mb-8">
-            You get 50 free leads the moment you sign up. See step one through step four with your own eyes.
+            You get 100 free leads the moment you sign up. See step one through step four with your own eyes.
           </p>
           <Link
             href="/sign-up"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-primary hover:bg-primary/90 text-white text-base font-semibold transition-all shadow-lg shadow-primary/30"
           >
-            Get My 50 Free Leads
+            Get My 100 Free Leads
           </Link>
         </div>
       </section>

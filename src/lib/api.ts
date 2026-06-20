@@ -130,6 +130,7 @@ export async function verifyPayment(reference: string): Promise<{ verified: bool
 
 /**
  * Fetch user's search collections.
+ * Each collection includes a real lead_count from the backend.
  */
 export async function fetchCollections(userId: string): Promise<SmartCollection[]> {
   try {
@@ -146,9 +147,12 @@ export async function fetchCollections(userId: string): Promise<SmartCollection[
 
     return (data || []).map((task: any) => ({
       id: task.id,
-      name: task.query || task.name || 'Untitled Search',
+      name: task.name || task.query || 'Untitled Search',
       task_type: (task.task_type || task.engine || 'ads_intent') as EngineType,
-      lead_count: task.lead_count || 0,
+      // The proxy already normalizes lead_count to a real number from the
+      // backend's smart_collections table. Trust it. We only fall back to 0
+      // if the field is genuinely missing (e.g. legacy data).
+      lead_count: typeof task.lead_count === 'number' ? task.lead_count : Number(task.lead_count) || 0,
       created_at: task.created_at?.split('T')[0] || '',
     }))
   } catch (err) {

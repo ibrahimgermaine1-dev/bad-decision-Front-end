@@ -16,7 +16,7 @@ export default function SignUpPage() {
               <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Lead Intelligence</div>
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-foreground mb-2">Get 50 free leads.</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-2">Get 100 free leads.</h1>
           <p className="text-[14px] text-muted-foreground">No credit card. No catch. Just real buyers.</p>
         </div>
 
@@ -65,7 +65,7 @@ export default function SignUpPage() {
             <svg className="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            50 free leads
+            100 free leads
           </span>
           <span className="flex items-center gap-1.5">
             <svg className="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
