@@ -1,8 +1,12 @@
 'use client'
 
 import { SignIn } from '@clerk/nextjs'
+import { useSearchParams } from 'next/navigation'
 
 export default function SignInPage() {
+  const searchParams = useSearchParams()
+  const redirectUrl = searchParams.get('redirect_url') || '/dashboard'
+
   return (
     <div className="min-h-screen bg-background bg-radial-glow bg-grid flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
@@ -25,9 +29,9 @@ export default function SignInPage() {
             routing="path"
             path="/sign-in"
             signUpUrl="/sign-up"
-            afterSignInUrl="/dashboard"
-            afterSignUpUrl="/dashboard"
-            redirectUrl="/dashboard"
+            afterSignInUrl={redirectUrl}
+            afterSignUpUrl={redirectUrl}
+            redirectUrl={redirectUrl}
             appearance={{
               elements: {
                 rootBox: 'w-full',

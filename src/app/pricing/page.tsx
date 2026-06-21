@@ -45,7 +45,8 @@ export default function PricingPage() {
     }
 
     if (!isSignedIn) {
-      router.push('/sign-in')
+      // Redirect to sign-in, but come BACK to the pricing page after
+      router.push('/sign-in?redirect_url=/pricing')
       return
     }
 
