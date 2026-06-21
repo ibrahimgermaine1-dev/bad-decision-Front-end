@@ -114,5 +114,24 @@ async function handleClerkEvent(body: any) {
   }
 
   console.log(`[CLERK_WEBHOOK] User created: ${userId} (${email}) with 50 free credits`)
+
+  // Fire welcome email via backend (best-effort, never blocks the webhook response)
+  const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || ''
+  const apiSecret = process.env.BACKEND_API_SECRET || ''
+  if (backendUrl && apiSecret) {
+    try {
+      await fetch(`${backendUrl}/api/email/welcome`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Secret': apiSecret,
+        },
+        body: JSON.stringify({ email, full_name: fullName }),
+      })
+    } catch (emailErr) {
+      console.warn('[CLERK_WEBHOOK] Welcome email failed (non-blocking):', emailErr)
+    }
+  }
+
   return NextResponse.json({ ok: true, user_id: userId })
 }

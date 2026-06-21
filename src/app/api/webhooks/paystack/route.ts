@@ -156,6 +156,43 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`[PAYSTACK_WEBHOOK] Payment verified: ${userEmail} -> ${creditsToAdd} credits${purchasedTier ? ` (${purchasedTier})` : ''} ref=${reference} amount=${amount} ${currency}`)
+
+    // Fire payment receipt email via backend (best-effort, never blocks the webhook response)
+    const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || ''
+    const apiSecret = process.env.BACKEND_API_SECRET || ''
+    if (backendUrl && apiSecret && currency === 'NGN') {
+      try {
+        // Fetch user's full name from profiles
+        const profileRes = await fetch(
+          `${supabaseUrl}/rest/v1/profiles?select=full_name&id=eq.${encodeURIComponent(userId)}&limit=1`,
+          { headers }
+        )
+        let fullName = ''
+        if (profileRes.ok) {
+          const profileData = await profileRes.json()
+          fullName = profileData?.[0]?.full_name || ''
+        }
+
+        await fetch(`${backendUrl}/api/email/payment-receipt`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Secret': apiSecret,
+          },
+          body: JSON.stringify({
+            email: userEmail,
+            full_name: fullName,
+            credits: creditsToAdd,
+            amount_ngn_kobo: amount,
+            reference,
+            description: grant.description,
+          }),
+        })
+      } catch (emailErr) {
+        console.warn('[PAYSTACK_WEBHOOK] Receipt email failed (non-blocking):', emailErr)
+      }
+    }
+
     return NextResponse.json({ ok: true, credits_added: creditsToAdd, tier: purchasedTier })
   } catch (error: any) {
     console.error('[PAYSTACK_WEBHOOK] Error:', error)
