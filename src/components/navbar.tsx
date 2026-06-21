@@ -31,11 +31,14 @@ export function Navbar() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Detect user country for pricing currency
+  // Detect user country for pricing currency.
+  // Uses our own /api/detect-country endpoint, which reads Vercel's
+  // `x-vercel-ip-country` header — no third-party service, no rate limits,
+  // no IP leakage to ipapi.co or similar.
   useEffect(() => {
-    fetch('https://ipapi.co/json/')
+    fetch('/api/detect-country')
       .then(r => r.json())
-      .then(data => setUserCountry(data.country_code || 'US'))
+      .then(data => setUserCountry(data.country || 'US'))
       .catch(() => setUserCountry('US'))
   }, [setUserCountry])
 

@@ -111,7 +111,7 @@ function HeroSection() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-20">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
           {[
-            { num: '50', label: 'Free leads to start' },
+            { num: '100', label: 'Free leads to start' },
             { num: '4', label: 'Ways to find buyers' },
             { num: '100%', label: 'Emails tested first' },
             { num: '0', label: 'Dead contacts you pay for' },
@@ -457,7 +457,7 @@ function ProofSection() {
                 ))}
               </div>
               <p className="text-base sm:text-lg text-foreground leading-relaxed mb-6">
-                "{t.quote}"
+                &ldquo;{t.quote}&rdquo;
               </p>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
@@ -682,7 +682,7 @@ function FinalCTASection() {
         </h2>
         <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
           You have made enough bad decisions with lead lists. Make one good one today.
-          Sign up free. Get 50 verified contacts. See for yourself.
+          Sign up free. Get 100 verified contacts. See for yourself.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link

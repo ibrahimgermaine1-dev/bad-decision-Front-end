@@ -1,23 +1,21 @@
 /**
  * Paystack Webhook — Add credits after successful payment
- * SECURED: Always validates signature. Rejects if secret is missing.
- * Rate limited. Idempotent via add_credits RPC (checks reference_id for duplicates).
+ * ========================================================
+ * SECURED:
+ *   1. Always validates HMAC-SHA512 signature. Rejects if secret missing.
+ *   2. Credit amount is computed from the VERIFIED `amount`+`currency`,
+ *      NEVER from client-supplied `metadata.credits` (which can be tampered
+ *      with in the browser). See `src/lib/server-pricing.ts`.
+ *   3. Idempotent via `add_credits` RPC (checks `reference_id` for duplicates).
+ *
+ * Rate limited.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 import { checkWebhookRateLimit } from '@/lib/rate-limit'
+import { resolveCreditGrant } from '@/lib/server-pricing'
 
 export const dynamic = 'force-dynamic'
-
-// In-memory set of recently processed references to prevent duplicate processing
-const processedReferences = new Set<string>()
-
-// Clean up old references every 10 minutes
-setInterval(() => {
-  if (processedReferences.size > 10000) {
-    processedReferences.clear()
-  }
-}, 600000)
 
 function verifyPaystackSignature(payload: string, signature: string): boolean {
   const secret = process.env.PAYSTACK_SECRET_KEY
@@ -58,7 +56,6 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text()
     const signature = req.headers.get('x-paystack-signature') || ''
 
-    // Always verify signature, reject if invalid or secret missing
     if (!signature) {
       return NextResponse.json({ error: 'Missing signature' }, { status: 401 })
     }
@@ -71,36 +68,34 @@ export async function POST(req: NextRequest) {
     if (event !== 'charge.success') return NextResponse.json({ ok: true })
 
     const userEmail = data.customer?.email
-    const amount = data.amount
-    const currency = data.currency || 'NGN'
-    const reference = data.reference || ''
-    if (!userEmail) return NextResponse.json({ error: 'No email' }, { status: 400 })
+    const amount = Number(data.amount) || 0
+    const currency = String(data.currency || 'NGN')
+    const reference = String(data.reference || '')
 
-    // IDEMPOTENCY: Skip if this reference was already processed
-    if (reference && processedReferences.has(reference)) {
-      console.log(`[PAYSTACK_WEBHOOK] Duplicate reference skipped: ${reference}`)
-      return NextResponse.json({ ok: true, duplicate: true })
+    if (!userEmail) return NextResponse.json({ error: 'No email' }, { status: 400 })
+    if (!amount || amount <= 0) {
+      console.error(`[PAYSTACK_WEBHOOK] Invalid amount: ${amount} (ref ${reference})`)
+      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 
-    // Find user — try metadata user_id first, then fall back to email lookup
+    // === USER LOOKUP ===
+    // Trust metadata.user_id (set by our own frontend) for identification only.
+    // NEVER trust metadata.credits/plan — those are computed from verified amount below.
     const metadata = data.metadata || {}
     const metadataUserId = metadata.user_id as string | undefined
     let userId: string | null = null
-    let userTier: string = 'free'
 
     if (metadataUserId) {
-      // Look up by Clerk user_id (most reliable — matches the authenticated user)
       const findByIdRes = await fetch(
-        `${supabaseUrl}/rest/v1/profiles?select=id,tier&id=eq.${encodeURIComponent(metadataUserId)}&limit=1`,
+        `${supabaseUrl}/rest/v1/profiles?select=id&id=eq.${encodeURIComponent(metadataUserId)}&limit=1`,
         { headers }
       )
       if (findByIdRes.ok) {
         const profilesById = await findByIdRes.json()
         if (profilesById && profilesById.length > 0) {
           userId = profilesById[0].id
-          userTier = profilesById[0].tier || 'free'
         }
       }
     }
@@ -108,13 +103,12 @@ export async function POST(req: NextRequest) {
     if (!userId) {
       // Fall back to email lookup
       const findRes = await fetch(
-        `${supabaseUrl}/rest/v1/profiles?select=id,tier&email=eq.${encodeURIComponent(userEmail)}&limit=1`,
+        `${supabaseUrl}/rest/v1/profiles?select=id&email=eq.${encodeURIComponent(userEmail)}&limit=1`,
         { headers }
       )
       const profiles = await findRes.json()
       if (findRes.ok && profiles && profiles.length > 0) {
         userId = profiles[0].id
-        userTier = profiles[0].tier || 'free'
       }
     }
 
@@ -122,54 +116,20 @@ export async function POST(req: NextRequest) {
       console.error(`[PAYSTACK_WEBHOOK] User not found for email ${userEmail} and metadata user_id ${metadataUserId}`)
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
-    let purchasedTier: string | null = null
-    let creditsToAdd = 0
-    let transactionType = 'purchase'
-    let description = 'Credit purchase'
 
-    // Check metadata to determine if this is a credit top-up or a tier upgrade
-    // (metadata variable was already extracted above for user_id lookup)
-    const isCreditAddon = metadata.type === 'credit_addon'
-    const metadataPlan = metadata.plan as string | undefined
-    const metadataCredits = metadata.credits as number | undefined
+    // === CREDIT GRANT — computed from VERIFIED amount only ===
+    const grant = resolveCreditGrant(amount, currency)
+    const creditsToAdd = grant.credits
+    const purchasedTier = grant.tier
+    const description = grant.description
+    const transactionType = 'purchase'
 
-    if (isCreditAddon) {
-      // Credit top-up — use the credits amount from metadata (trusted because
-      // the frontend sets it based on the selected addon package)
-      creditsToAdd = metadataCredits || 0
-      description = `${creditsToAdd} credit top-up`
-      // No tier change for credit top-ups
-    } else if (metadataPlan) {
-      // Tier upgrade — use the plan from metadata
-      purchasedTier = metadataPlan
-      const tierCredits: Record<string, number> = {
-        starter: 1500,
-        growth: 3000,
-        pro: 5000,
-      }
-      creditsToAdd = metadataCredits || tierCredits[metadataPlan] || 0
-      description = `${metadataPlan.charAt(0).toUpperCase() + metadataPlan.slice(1)} tier upgrade - ${creditsToAdd} credits`
-    } else {
-      // Fallback: no metadata — use amount-based mapping (for manual payments
-      // or payments made outside the app)
-      if (currency === 'NGN') {
-        const ngn = amount / 100
-        if (ngn >= 28000) { purchasedTier = 'pro'; creditsToAdd = 5000; description = 'Pro tier upgrade - 5000 credits' }
-        else if (ngn >= 20000) { purchasedTier = 'growth'; creditsToAdd = 3000; description = 'Growth tier upgrade - 3000 credits' }
-        else if (ngn >= 12000) { purchasedTier = 'starter'; creditsToAdd = 1500; description = 'Starter tier upgrade - 1500 credits' }
-        else if (ngn >= 4000) { creditsToAdd = 500; description = '500 credit top-up' }
-        else creditsToAdd = Math.round(ngn / 8)
-      } else {
-        const usd = amount / 100
-        if (usd >= 35) { purchasedTier = 'pro'; creditsToAdd = 5000; description = 'Pro tier upgrade - 5000 credits' }
-        else if (usd >= 25) { purchasedTier = 'growth'; creditsToAdd = 3000; description = 'Growth tier upgrade - 3000 credits' }
-        else if (usd >= 15) { purchasedTier = 'starter'; creditsToAdd = 1500; description = 'Starter tier upgrade - 1500 credits' }
-        else if (usd >= 5) { creditsToAdd = 500; description = '500 credit top-up' }
-        else creditsToAdd = Math.round(usd * 100)
-      }
+    if (creditsToAdd <= 0) {
+      console.error(`[PAYSTACK_WEBHOOK] Resolved 0 credits for amount ${amount} ${currency} (ref ${reference})`)
+      return NextResponse.json({ error: 'Could not resolve credit amount' }, { status: 400 })
     }
 
-    // Add credits via add_credits RPC (IDEMPOTENT — checks reference_id for duplicates)
+    // === ADD CREDITS (idempotent via reference_id) ===
     const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/add_credits`, {
       method: 'POST',
       headers,
@@ -186,7 +146,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: err.message || 'Credit add failed' }, { status: 500 })
     }
 
-    // Upgrade tier
+    // === TIER UPGRADE ===
     if (purchasedTier) {
       await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
         method: 'PATCH',
@@ -195,13 +155,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Mark reference as processed (in-memory cache for fast dedup;
-    // the real idempotency is in the add_credits RPC via reference_id)
-    if (reference) {
-      processedReferences.add(reference)
-    }
-
-    console.log(`[PAYSTACK_WEBHOOK] Payment verified: ${userEmail} -> ${creditsToAdd} credits${purchasedTier ? ` (${purchasedTier})` : ''} ref=${reference}`)
+    console.log(`[PAYSTACK_WEBHOOK] Payment verified: ${userEmail} -> ${creditsToAdd} credits${purchasedTier ? ` (${purchasedTier})` : ''} ref=${reference} amount=${amount} ${currency}`)
     return NextResponse.json({ ok: true, credits_added: creditsToAdd, tier: purchasedTier })
   } catch (error: any) {
     console.error('[PAYSTACK_WEBHOOK] Error:', error)

@@ -79,31 +79,60 @@ export default function PricingPage() {
           },
           callback: (response: any) => {
             const reference = response?.reference || ''
-            if (reference) {
-              verifyPayment(reference).then((result) => {
-                if (result.verified && result.balance) {
+            if (!reference) {
+              // No reference returned — payment likely didn't complete.
+              setPaymentError('Payment did not complete. No reference was returned. Please try again.')
+              setPaymentProcessing(false)
+              return
+            }
+
+            // Verify server-side BEFORE updating tier/balance. This prevents
+            // the optimistic-update race where the dashboard shows the new
+            // tier before the backend has actually credited the user.
+            verifyPayment(reference).then((result) => {
+              if (result.verified) {
+                // Verification succeeded — backend has credited the user.
+                // NOW we can safely update local state.
+                if (result.balance) {
                   setCreditBalance({
                     credits_balance: result.balance.credits_balance ?? 0,
                     credits_reserved: result.balance.credits_reserved ?? 0,
                     total_purchased: result.balance.total_purchased ?? 0,
                   })
                 }
-              }).catch(() => {
-                setTimeout(async () => {
-                  try {
-                    const balance = await fetchCreditBalance()
-                    setCreditBalance({
-                      credits_balance: balance.credits_balance ?? 0,
-                      credits_reserved: balance.credits_reserved ?? 0,
-                      total_purchased: balance.total_purchased ?? 0,
-                    })
-                  } catch {}
-                }, 3000)
-              })
-            }
-            setTier(tierId)
-            setPaymentProcessing(false)
-            router.push('/dashboard')
+                setTier(tierId)
+                setPaymentProcessing(false)
+                router.push('/dashboard')
+              } else {
+                // Verification failed — keep the user on the pricing page so
+                // they can retry. Don't update tier. The Paystack webhook
+                // may still process the payment asynchronously; if so, the
+                // user will see the credits on their next dashboard load.
+                setPaymentError(
+                  result.status === 'error'
+                    ? 'We could not verify your payment right now. If you were charged, your credits will appear within a minute.'
+                    : 'Payment was not successful. Please try again.'
+                )
+                setPaymentProcessing(false)
+              }
+            }).catch(() => {
+              // Network error during verification — fall back to a delayed
+              // balance fetch. Don't optimistically upgrade the tier; let the
+              // user see real data instead of fake state.
+              setPaymentError('Payment was processed but verification is delayed. Your credits will appear within a minute.')
+              setTimeout(async () => {
+                try {
+                  const balance = await fetchCreditBalance()
+                  setCreditBalance({
+                    credits_balance: balance.credits_balance ?? 0,
+                    credits_reserved: balance.credits_reserved ?? 0,
+                    total_purchased: balance.total_purchased ?? 0,
+                  })
+                } catch {}
+                setPaymentProcessing(false)
+                router.push('/dashboard')
+              }, 3000)
+            })
           },
           onClose: () => {
             setPaymentProcessing(false)

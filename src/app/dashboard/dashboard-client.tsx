@@ -89,7 +89,9 @@ export function DashboardShell() {
   const [activeView, setActiveView] = useState<DashView>('search')
   const [selectedEngine, setSelectedEngine] = useState<EngineType | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCountry, setSelectedCountry] = useState('NG')
+  // Default country comes from the navbar's IP detection (stored in userCountry).
+  // Falls back to 'NG' (the founder's primary market) if detection hasn't run yet.
+  const [selectedCountry, setSelectedCountry] = useState(userCountry || 'NG')
   const [selectedState, setSelectedState] = useState('')
   const [searchStatus, setSearchStatus] = useState<'idle' | 'processing' | 'completed' | 'failed' | 'exhausted'>('idle')
   const [leads, setLeads] = useState<Lead[]>([])
@@ -176,6 +178,23 @@ export function DashboardShell() {
     return () => { cancelled = true }
   }, [isLoaded, isSignedIn, router, loadBalance, loadProfile])
 
+  // ===== SYNC selectedCountry when userCountry arrives from IP detection =====
+  // The navbar calls ipapi.co on mount to detect the user's country. That
+  // value lands in `userCountry` AFTER this component's first render. If the
+  // user hasn't manually changed their country yet, sync it from the store
+  // so the dropdown shows the right default.
+  const [countryManuallySet, setCountryManuallySet] = useState(false)
+  useEffect(() => {
+    if (!countryManuallySet && userCountry && userCountry !== selectedCountry) {
+      setSelectedCountry(userCountry)
+    }
+  }, [userCountry, countryManuallySet, selectedCountry])
+
+  const handleCountryChange = useCallback((country: string) => {
+    setSelectedCountry(country)
+    setCountryManuallySet(true)
+  }, [])
+
   // ===== FETCH COLLECTIONS =====
   useEffect(() => {
     if (userId) {
@@ -259,7 +278,7 @@ export function DashboardShell() {
       setSearchStatus('failed')
       setSearchError(err.message || 'Something went wrong. Try again.')
     }
-  }, [selectedEngine, searchQuery, selectedCountry, selectedState, loadBalance])
+  }, [selectedEngine, searchQuery, selectedCountry, selectedState, loadBalance, creditBalance.credits_balance])
 
   // ===== HANDLE PAYMENT (Paystack) =====
   const handleBuyCredits = async (addon: typeof CREDIT_ADDONS[0]) => {
@@ -394,11 +413,15 @@ export function DashboardShell() {
       <Script src="https://js.paystack.co/v2/inline.js" />
 
       {/* ===== MOBILE HEADER ===== */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-card border-b border-border h-14 flex items-center justify-between px-4">
+      <div
+        className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-card border-b border-border h-14 flex items-center justify-between px-4"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-lg hover:bg-card-foreground/10 transition-colors"
+            className="p-2 -ml-2 rounded-lg hover:bg-card-foreground/10 active:bg-card-foreground/15 transition-colors"
+            aria-label="Open menu"
           >
             <svg className="w-5 h-5 text-card-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -411,12 +434,17 @@ export function DashboardShell() {
             <span className="font-bold text-[14px] text-card-foreground">Bad Decision</span>
           </div>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card-foreground/10 border border-primary/20">
+        <button
+          onClick={() => { setActiveView('credits') }}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card-foreground/10 border border-primary/20 active:scale-95 transition-transform"
+          aria-label="View credits"
+        >
           <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
           </svg>
-          <span className="text-[13px] font-bold text-card-foreground">{creditBalance.credits_balance}</span>
-        </div>
+          <span className="text-[13px] font-bold text-card-foreground tabular-nums">{creditBalance.credits_balance}</span>
+          <span className="text-[10px] text-card-foreground/60 uppercase font-semibold hidden min-[400px]:inline">{tier}</span>
+        </button>
       </div>
 
       {/* ===== SIDEBAR ===== */}
@@ -424,28 +452,44 @@ export function DashboardShell() {
         {/* Mobile overlay */}
         {sidebarOpen && (
           <div
-            className="lg:hidden fixed inset-0 bg-black/60 z-40"
+            className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+            style={{ animation: 'fade-in-up 0.2s ease-out' }}
             onClick={() => setSidebarOpen(false)}
           />
         )}
 
-        <aside className={`
-          fixed lg:sticky top-0 left-0 z-50 lg:z-30
-          h-screen w-64 flex-shrink-0
-          bg-card border-r border-border
-          flex flex-col
-          transition-transform duration-300
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        `}>
-          {/* Logo */}
-          <div className="h-14 flex items-center gap-2.5 px-4 border-b border-border">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
-              <span className="text-white font-bold text-xs">BD</span>
+        <aside
+          className={`
+            fixed lg:sticky top-0 left-0 z-50 lg:z-30
+            h-screen w-[280px] sm:w-64 flex-shrink-0
+            bg-card border-r border-border
+            flex flex-col
+            transition-transform duration-300 ease-out
+            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          `}
+          style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          {/* Logo + close button (mobile) */}
+          <div className="h-14 flex items-center justify-between gap-2.5 px-4 border-b border-border">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20 flex-shrink-0">
+                <span className="text-white font-bold text-xs">BD</span>
+              </div>
+              <div className="min-w-0">
+                <div className="font-bold text-[14px] text-card-foreground truncate">Bad Decision</div>
+                <div className="text-[9px] text-card-foreground/60 uppercase tracking-wide">Lead Intelligence</div>
+              </div>
             </div>
-            <div>
-              <div className="font-bold text-[14px] text-card-foreground">Bad Decision</div>
-              <div className="text-[9px] text-card-foreground/60 uppercase tracking-wide">Lead Intelligence</div>
-            </div>
+            {/* Close button — mobile only */}
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden p-2 -mr-2 rounded-lg hover:bg-card-foreground/10 active:bg-card-foreground/15 transition-colors"
+              aria-label="Close menu"
+            >
+              <svg className="w-5 h-5 text-card-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
 
           {/* Credit Balance Card */}
@@ -457,11 +501,17 @@ export function DashboardShell() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                 </svg>
               </div>
-              <div className="text-2xl font-bold text-card-foreground">{creditBalance.credits_balance}</div>
-              <div className="text-[11px] text-card-foreground/60 mt-0.5">{creditBalance.credits_reserved} reserved</div>
+              <div className="flex items-baseline gap-2">
+                <div className="text-2xl font-bold text-card-foreground tabular-nums">{creditBalance.credits_balance}</div>
+                {creditBalance.credits_reserved > 0 && (
+                  <div className="text-[11px] text-card-foreground/60">
+                    <span className="tabular-nums">{creditBalance.credits_reserved}</span> reserved
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => { setActiveView('credits'); setSidebarOpen(false) }}
-                className={`w-full mt-2.5 py-2 rounded-lg text-[12px] font-bold transition-all ${
+                className={`w-full mt-2.5 py-2.5 rounded-lg text-[12px] font-bold transition-all active:scale-95 ${
                   creditBalance.credits_balance <= 0
                     ? 'bg-destructive hover:bg-destructive/90 text-white animate-pulse shadow-lg shadow-destructive/30'
                     : 'bg-primary hover:bg-primary/90 text-white shadow-sm'
@@ -542,7 +592,7 @@ export function DashboardShell() {
       </>
 
       {/* ===== MAIN CONTENT ===== */}
-      <main className="flex-1 min-w-0 pt-14 lg:pt-0">
+      <main className="flex-1 min-w-0 pt-[calc(3.5rem+env(safe-area-inset-top))] lg:pt-0">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           {activeView === 'search' && (
             <SearchView
@@ -551,7 +601,7 @@ export function DashboardShell() {
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
               selectedCountry={selectedCountry}
-              setSelectedCountry={setSelectedCountry}
+              setSelectedCountry={handleCountryChange}
               selectedState={selectedState}
               setSelectedState={setSelectedState}
               searchStatus={searchStatus}
@@ -827,7 +877,7 @@ function SearchView({
           <button
             onClick={onSearch}
             disabled={!canSearch}
-            className={`w-full py-3.5 rounded-lg font-semibold text-[15px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg ${
+            className={`w-full py-3.5 rounded-lg font-semibold text-[15px] transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 shadow-lg ${
               hasNoCredits
                 ? 'bg-destructive/80 hover:bg-destructive text-white shadow-destructive/20'
                 : 'bg-primary hover:bg-primary/90 text-white shadow-primary/20'
@@ -2162,11 +2212,11 @@ function SupportView() {
         <div className="space-y-3">
           <div className="flex items-start gap-3">
             <span className="text-primary font-bold flex-shrink-0">1.</span>
-            <p className="text-[14px] text-muted-foreground">Be specific in your search. "Roofers in Dallas" works better than just "roofers".</p>
+            <p className="text-[14px] text-muted-foreground">Be specific in your search. &ldquo;Roofers in Dallas&rdquo; works better than just &ldquo;roofers&rdquo;.</p>
           </div>
           <div className="flex items-start gap-3">
             <span className="text-primary font-bold flex-shrink-0">2.</span>
-            <p className="text-[14px] text-muted-foreground">Pick the right engine. If you sell websites, use "Businesses Without Websites".</p>
+            <p className="text-[14px] text-muted-foreground">Pick the right engine. If you sell websites, use &ldquo;Businesses Without Websites&rdquo;.</p>
           </div>
           <div className="flex items-start gap-3">
             <span className="text-primary font-bold flex-shrink-0">3.</span>

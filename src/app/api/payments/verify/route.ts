@@ -1,20 +1,22 @@
 /**
  * Paystack Payment Verification — Server-side
- * BUG 1 FIX: Verifies payment with Paystack's API before updating UI.
- * Prevents client-side balance spoofing by confirming transactions server-side.
- * 
+ * ============================================
  * Flow:
  * 1. Client completes Paystack popup → gets reference
  * 2. Client calls this endpoint with the reference
  * 3. We verify with Paystack's /verify endpoint
- * 4. If verified, return the confirmed balance
- * 
- * Note: The webhook is still the source of truth for credit additions.
- * This endpoint just confirms whether payment was actually received.
+ * 4. If verified, compute credits from the VERIFIED amount (never from
+ *    client-supplied metadata — see src/lib/server-pricing.ts), add via
+ *    add_credits RPC (idempotent), and return the confirmed balance.
+ *
+ * SECURITY: This endpoint and the Paystack webhook both compute credits
+ * from the same trusted source (server-pricing.ts). Client-supplied
+ * metadata is used ONLY for user identification (metadata.user_id).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { resolveCreditGrant } from '@/lib/server-pricing'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,47 +101,21 @@ export async function POST(req: NextRequest) {
       'Content-Type': 'application/json',
     }
 
-    // DETERMINE CREDITS TO ADD based on metadata (same logic as webhook)
+    // === CREDIT GRANT — computed from VERIFIED amount only ===
+    // SECURITY: We deliberately IGNORE metadata.credits and metadata.plan.
+    // Those fields are set by the browser and can be tampered with. The
+    // verified amount/currency from Paystack is the only trusted input.
+    // See `src/lib/server-pricing.ts` for the canonical pricing table.
     const metadata = verifyData.data.metadata || {}
-    const isCreditAddon = metadata.type === 'credit_addon'
-    const metadataPlan = metadata.plan as string | undefined
-    const metadataCredits = metadata.credits as number | undefined
     const metadataUserId = metadata.user_id as string | undefined
-
-    let creditsToAdd = 0
-    let description = 'Credit purchase'
-    let purchasedTier: string | null = null
 
     // Use the authenticated userId (most reliable) or fall back to metadata
     const effectiveUserId = userId || metadataUserId
 
-    if (isCreditAddon) {
-      creditsToAdd = metadataCredits || 0
-      description = `${creditsToAdd} credit top-up`
-    } else if (metadataPlan) {
-      purchasedTier = metadataPlan
-      const tierCredits: Record<string, number> = { starter: 1500, growth: 3000, pro: 5000 }
-      creditsToAdd = metadataCredits || tierCredits[metadataPlan] || 0
-      description = `${metadataPlan.charAt(0).toUpperCase() + metadataPlan.slice(1)} tier upgrade - ${creditsToAdd} credits`
-    } else {
-      // Fallback: amount-based mapping
-      if (currency === 'NGN') {
-        const ngn = amount / 100
-        if (ngn >= 28000) { purchasedTier = 'pro'; creditsToAdd = 5000 }
-        else if (ngn >= 20000) { purchasedTier = 'growth'; creditsToAdd = 3000 }
-        else if (ngn >= 12000) { purchasedTier = 'starter'; creditsToAdd = 1500 }
-        else if (ngn >= 4000) { creditsToAdd = 500 }
-        else creditsToAdd = Math.round(ngn / 8)
-      } else {
-        const usd = amount / 100
-        if (usd >= 35) { purchasedTier = 'pro'; creditsToAdd = 5000 }
-        else if (usd >= 25) { purchasedTier = 'growth'; creditsToAdd = 3000 }
-        else if (usd >= 15) { purchasedTier = 'starter'; creditsToAdd = 1500 }
-        else if (usd >= 5) { creditsToAdd = 500 }
-        else creditsToAdd = Math.round(usd * 100)
-      }
-      description = purchasedTier ? `${purchasedTier} tier upgrade - ${creditsToAdd} credits` : `${creditsToAdd} credit top-up`
-    }
+    const grant = resolveCreditGrant(amount, currency)
+    const creditsToAdd = grant.credits
+    const purchasedTier = grant.tier
+    const description = grant.description
 
     // ADD CREDITS DIRECTLY via add_credits RPC (idempotent — safe to call
     // even if the webhook already processed this payment)

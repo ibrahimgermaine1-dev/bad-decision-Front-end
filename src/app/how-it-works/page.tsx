@@ -36,9 +36,9 @@ export default function HowItWorksPage() {
                   You type what you want. That is it. No forms. No filters you do not understand. No setup wizard.
                 </p>
                 <p>
-                  Want roofers in Dallas? Type "roofers in Dallas." Want bakeries in Lagos?
-                  Type "bakeries in Lagos." Want dentists in Toronto who run Facebook ads?
-                  Type "dentists in Toronto" and pick the ads engine. The system knows what you mean.
+                  Want roofers in Dallas? Type &ldquo;roofers in Dallas.&rdquo; Want bakeries in Lagos?
+                  Type &ldquo;bakeries in Lagos.&rdquo; Want dentists in Toronto who run Facebook ads?
+                  Type &ldquo;dentists in Toronto&rdquo; and pick the ads engine. The system knows what you mean.
                 </p>
                 <p>
                   You also pick where you want to search. Choose a continent. Choose a country.

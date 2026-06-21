@@ -6,7 +6,7 @@
  * NOTE: Device fingerprint multi-account blocking has been REMOVED.
  * Multiple accounts per device are now allowed.
  * Uses the handle_new_user RPC which creates profile + credit_balances +
- * credit_transactions in one atomic call (with 50 free credits).
+ * credit_transactions in one atomic call (with 100 free credits).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { Webhook } from 'svix'
@@ -113,6 +113,6 @@ async function handleClerkEvent(body: any) {
     return NextResponse.json({ error: errData.message || 'User creation failed' }, { status: 500 })
   }
 
-  console.log(`[CLERK_WEBHOOK] User created: ${userId} (${email}) with 50 free credits`)
+  console.log(`[CLERK_WEBHOOK] User created: ${userId} (${email}) with 100 free credits`)
   return NextResponse.json({ ok: true, user_id: userId })
 }

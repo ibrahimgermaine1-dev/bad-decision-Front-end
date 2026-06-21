@@ -50,7 +50,10 @@ export async function GET(req: NextRequest) {
       }
       if (apiSecret) headers['X-API-Secret'] = apiSecret
 
-      // Try the dedicated single-task endpoint first
+      // Try the dedicated single-task endpoint first.
+      // This is the canonical source — it returns only the requested task,
+      // not all the user's tasks. Avoids the O(n) scan of fetching every
+      // past task just to find one.
       const singleTaskRes = await fetch(`${backendUrl}/api/task/${encodeURIComponent(taskId)}`, {
         method: 'GET',
         headers,
@@ -73,54 +76,18 @@ export async function GET(req: NextRequest) {
         })
       }
 
-      // Fallback: get all user tasks and find the specific one
-      const res = await fetch(`${backendUrl}/api/tasks/${encodeURIComponent(userId)}`, {
-        method: 'GET',
-        headers,
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        const allTasks = data.tasks || data || []
-
-        // Find the specific task by ID
-        const task = Array.isArray(allTasks)
-          ? allTasks.find((t: any) => String(t.id) === String(taskId))
-          : null
-
-        if (!task) {
-          // Task not found in backend response — try Supabase fallback
-          return await supabaseFallback(taskId, userId)
-        }
-
-        let leads: any[] = []
-
-        // If task is completed, fetch leads from the backend (by task_id)
-        if (task.status === 'completed') {
-          const leadsRes = await fetch(`${backendUrl}/api/leads/${encodeURIComponent(task.id)}`, {
-            method: 'GET',
-            headers,
-          })
-          if (leadsRes.ok) {
-            const leadsData = await leadsRes.json()
-            leads = leadsData.leads || leadsData || []
-          }
-        }
-
-        return NextResponse.json({
-          task_id: task.id,
-          status: task.status,
-          engine: task.task_type || task.engine || '',
-          query: task.query || '',
-          progress: task.progress || 0,
-          current_step: task.current_step || '',
-          leads,
-          lead_count: leads.length,
-          credits_reserved: task.credits_reserved || 0,
-          credits_spent: task.credits_spent || 0,
-          error_message: task.error_message || '',
-        })
+      // If the single-task endpoint returned 404, the task genuinely doesn't
+      // exist (or was deleted). Don't fall back to fetching ALL user tasks —
+      // that would be O(n) for every poll and would still return 404.
+      if (singleTaskRes.status === 404) {
+        return NextResponse.json({ error: 'Task not found' }, { status: 404 })
       }
+
+      // For 5xx errors (backend cold start, transient failure), fall back to
+      // Supabase direct read. We deliberately do NOT fall back to the
+      // /api/tasks/{user_id} "fetch all tasks" endpoint — that was O(n) on
+      // every poll and burned Supabase quota for power users.
+      // (Supabase fallback below.)
     }
 
     // Fallback: direct Supabase REST API

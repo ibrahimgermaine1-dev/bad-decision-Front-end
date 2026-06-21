@@ -2,7 +2,7 @@
  * Backend Proxy: GET /api/backend/credits
  * Fetches user credit balance from Supabase (credit_balances table).
  * FALLBACK: If the user has no credit_balances row (Clerk webhook may have
- * failed), auto-creates one with 50 free credits using direct Supabase
+ * failed), auto-creates one with 100 free credits using direct Supabase
  * inserts (more reliable than the RPC which can fail on email constraints).
  * Rate limited. Secure: uses service role key server-side only.
  */
@@ -73,91 +73,45 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // 3. FALLBACK: No credit_balances row exists. Auto-create profile +
-    //    credit_balances + credit_transactions with 50 free credits.
-    //    Use DIRECT Supabase inserts (not the RPC) for better error handling.
-    console.log(`[PROXY /credits] No credit_balances row for user ${userId} — auto-creating with 50 free credits`)
+    // 3. FALLBACK: No credit_balances row exists. The Clerk webhook may have
+    //    failed or been delayed. Use the handle_new_user RPC (the same one
+    //    the Clerk webhook uses) with the user's REAL email from Clerk —
+    //    never a fake placeholder email, because that would break future
+    //    Paystack receipts, Resend transactional emails, and forgot-password
+    //    flows. If we can't get a real email, return 0 credits with a warning.
+    console.log(`[PROXY /credits] No credit_balances row for user ${userId} — invoking handle_new_user RPC with real Clerk email`)
 
-    // Get user info from Clerk (server-side, safe — not exposed to browser)
     const user = await currentUser()
     const realEmail = user?.emailAddresses?.[0]?.emailAddress || ''
     const fullName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim()
 
-    // Use a unique email if real email is empty (avoids UNIQUE constraint conflict)
-    const emailToUse = realEmail || `${userId}@clerk.placeholder`
-
-    // Step A: Insert profile (ON CONFLICT DO NOTHING — idempotent)
-    const profileRes = await fetch(`${supabaseUrl}/rest/v1/profiles`, {
-      method: 'POST',
-      headers: { ...sbHeaders, 'Content-Type': 'application/json', 'Prefer': 'resolution=ignore-duplicates' },
-      body: JSON.stringify({
-        id: userId,
-        email: emailToUse,
-        full_name: fullName,
-        tier: 'free',
-        country: 'US',
-      }),
-    })
-
-    if (!profileRes.ok && profileRes.status !== 409) {
-      // 409 = conflict (row already exists) — that's OK
-      // If email conflicts with another user, try the placeholder email
-      if (realEmail) {
-        console.log(`[PROXY /credits] Profile insert with real email failed, trying placeholder email`)
-        const profileRes2 = await fetch(`${supabaseUrl}/rest/v1/profiles`, {
-          method: 'POST',
-          headers: { ...sbHeaders, 'Content-Type': 'application/json', 'Prefer': 'resolution=ignore-duplicates' },
-          body: JSON.stringify({
-            id: userId,
-            email: `${userId}@clerk.placeholder`,
-            full_name: fullName,
-            tier: 'free',
-            country: 'US',
-          }),
-        })
-        if (!profileRes2.ok && profileRes2.status !== 409) {
-          const err2 = await profileRes2.json().catch(() => ({}))
-          console.error('[PROXY /credits] Profile insert failed:', err2)
-        }
-      } else {
-        const err = await profileRes.json().catch(() => ({}))
-        console.error('[PROXY /credits] Profile insert failed:', err)
-      }
-    }
-
-    // Step B: Insert credit_balances with 50 credits (ON CONFLICT DO NOTHING)
-    const balanceRes = await fetch(`${supabaseUrl}/rest/v1/credit_balances`, {
-      method: 'POST',
-      headers: { ...sbHeaders, 'Content-Type': 'application/json', 'Prefer': 'resolution=ignore-duplicates' },
-      body: JSON.stringify({
-        user_id: userId,
-        credits_balance: 50,
+    if (!realEmail) {
+      // Extremely rare — Clerk user with no email address. Don't fabricate
+      // a profile; ask the user to contact support.
+      console.error(`[PROXY /credits] No email on Clerk user ${userId} — cannot auto-create profile`)
+      return NextResponse.json({
+        credits_balance: 0,
         credits_reserved: 0,
-        total_purchased: 50,
-      }),
-    })
-
-    if (!balanceRes.ok && balanceRes.status !== 409) {
-      const err = await balanceRes.json().catch(() => ({}))
-      console.error('[PROXY /credits] credit_balances insert failed:', err)
+        total_purchased: 0,
+      })
     }
 
-    // Step C: Insert credit_transactions for the signup bonus (idempotent)
-    const txRes = await fetch(`${supabaseUrl}/rest/v1/credit_transactions`, {
+    // Call handle_new_user RPC (idempotent — ON CONFLICT DO NOTHING).
+    // This creates profile + credit_balances + credit_transactions atomically.
+    const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/handle_new_user`, {
       method: 'POST',
-      headers: { ...sbHeaders, 'Content-Type': 'application/json', 'Prefer': 'resolution=ignore-duplicates' },
+      headers: { ...sbHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        user_id: userId,
-        amount: 50,
-        transaction_type: 'signup_bonus',
-        description: '50 free credits for signing up',
-        reference_id: `signup_${userId}`,
+        p_clerk_id: userId,
+        p_email: realEmail,
+        p_full_name: fullName.slice(0, 256),
+        p_country: 'US',
       }),
     })
 
-    if (!txRes.ok && txRes.status !== 409) {
-      const err = await txRes.json().catch(() => ({}))
-      console.error('[PROXY /credits] credit_transactions insert failed:', err)
+    if (!rpcRes.ok) {
+      const err = await rpcRes.json().catch(() => ({}))
+      console.error('[PROXY /credits] handle_new_user RPC failed:', err)
     }
 
     // Step D: Re-fetch the balance to return the ACTUAL database value

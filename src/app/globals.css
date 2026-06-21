@@ -2,120 +2,168 @@
 @import "tw-animate-css";
 
 /* ============================================================
-   BAD DECISION — Perplexity Teal Design System
-   Soft teal gradient backgrounds, vibrant teal accents,
-   dark teal cards, generous whitespace.
+   BAD DECISION — Refined Teal Design System
+   ============================================================
+   Design philosophy:
+   - Light, airy backgrounds (white + soft teal tint)
+   - Teal as the BRAND accent, not the dominant surface color
+   - Dark teal reserved for the sidebar + footer (purposeful contrast)
+   - Card-first layout: white cards on tinted background
+   - Mobile-first: every breakpoint tuned for thumb reach
+   - Accessible: WCAG AA contrast on all text
    ============================================================ */
 
 @theme {
-  /* Core Backgrounds — Perplexity teal gradient */
-  --color-teal-light: #a8d5d0;
-  --color-teal-mid: #8ecdc8;
+  /* === Brand Palette === */
   --color-teal-vibrant: #00a8cc;
-  --color-teal-dark: #003d4d;
-  --color-teal-border: #004d5c;
+  --color-teal-bright: #00bcd4;
+  --color-teal-deep: #003d4d;
+  --color-teal-darker: #002a36;
 
-  /* Page background gradient */
-  --color-ink: #8ecdc8;
-  --color-ink-soft: #a8d5d0;
-  --color-surface: #ffffff;
-  --color-surface-raised: #f8fbfb;
+  /* === Page Surfaces (light, airy) === */
+  --color-background: #f4fafb;       /* soft teal-tinted off-white */
+  --color-surface: #ffffff;           /* pure white for cards */
+  --color-surface-raised: #ffffff;
   --color-surface-hover: #f0f7f7;
 
-  /* Borders */
-  --color-border: #004d5c;
-  --color-border-light: #b0d8d4;
+  /* === Foreground === */
+  --color-foreground: #0f1f24;        /* near-black with teal tint */
+  --color-text: #0f1f24;
+  --color-text-secondary: #2a3a40;
+  --color-text-muted: #5a6a70;
+  --color-text-dim: #8a9aa0;
+
+  /* === Borders (subtle) === */
+  --color-border: #d4e5e8;            /* light teal-gray */
+  --color-border-light: #e4eef0;
   --color-border-bright: #00a8cc;
 
-  /* Text — darkened for readability on teal background */
-  --color-text: #1a1a1a;
-  --color-text-secondary: #2a2a2a;
-  --color-text-muted: #3d3d3d;
-  --color-text-dim: #555555;
-
-  /* Brand Accent — vibrant teal */
-  --color-violet: #00a8cc;
+  /* === Brand Accent (vibrant teal) === */
+  --color-primary: #00a8cc;
+  --color-primary-foreground: #ffffff;
+  --color-primary-hover: #0094b8;
+  --color-violet: #00a8cc;            /* kept for backward compat */
   --color-violet-hover: #0094b8;
   --color-violet-soft: #e0f7fa;
   --color-violet-glow: rgba(0, 168, 204, 0.15);
 
-  /* Secondary accent — bright blue for links */
-  --color-azure: #007bff;
-  --color-azure-soft: #e7f0ff;
+  /* === Secondary (deep teal — for sidebar, footer) === */
+  --color-secondary: #003d4d;
+  --color-secondary-foreground: #f5f5f5;
+  --color-card: #003d4d;              /* dark teal — sidebar + footer only */
+  --color-card-foreground: #f5f5f5;
 
-  /* Semantic */
+  /* === Neutral Muted === */
+  --color-muted: #f0f7f7;
+  --color-muted-foreground: #5a6a70;
+
+  /* === Accent (alias for primary) === */
+  --color-accent: #00a8cc;
+  --color-accent-foreground: #ffffff;
+
+  /* === Semantic === */
   --color-success: #1a8a5a;
   --color-success-soft: #e8f5ed;
   --color-warning: #d4a017;
   --color-warning-soft: #fef9e7;
+  --color-destructive: #c0392b;
+  --color-destructive-foreground: #ffffff;
   --color-danger: #c0392b;
   --color-danger-soft: #fbeae8;
 
-  /* shadcn/ui Semantic Tokens — mapped to teal theme */
-  --color-background: #8ecdc8;
-  --color-foreground: #1a1a1a;
-  --color-primary: #00a8cc;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #003d4d;
-  --color-secondary-foreground: #f5f5f5;
-  --color-muted: #f0f7f7;
-  --color-muted-foreground: #2a2a2a;
-  --color-accent: #00a8cc;
-  --color-accent-foreground: #ffffff;
-  --color-destructive: #c0392b;
-  --color-destructive-foreground: #ffffff;
-  --color-card: #003d4d;
-  --color-card-foreground: #f5f5f5;
+  /* === Secondary accent (links) === */
+  --color-azure: #007bff;
+  --color-azure-soft: #e7f0ff;
+
+  /* === Popover === */
   --color-popover: #ffffff;
-  --color-popover-foreground: #1a1a1a;
+  --color-popover-foreground: #0f1f24;
+
+  /* === Input === */
   --color-input: #ffffff;
   --color-ring: #00a8cc;
+
+  /* === Chart palette === */
   --color-chart-1: #00a8cc;
   --color-chart-2: #1a8a5a;
   --color-chart-3: #d4a017;
   --color-chart-4: #c0392b;
   --color-chart-5: #007bff;
 
-  /* Border radius */
+  /* === Radius === */
   --radius-lg: 0.75rem;
   --radius-md: calc(var(--radius-lg) - 2px);
   --radius-sm: calc(var(--radius-lg) - 4px);
 
-  /* Typography */
-  --font-sans: 'Inter', 'Roboto', system-ui, -apple-system, sans-serif;
+  /* === Typography === */
+  --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
 }
 
+/* ============================================================
+   BASE LAYER
+   ============================================================ */
 @layer base {
   * {
     font-family: var(--font-sans);
   }
 
+  html {
+    /* Smooth font scaling across breakpoints */
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     color: var(--color-text);
-    background: linear-gradient(180deg, #a8d5d0 0%, #8ecdc8 100%);
+    background: var(--color-background);
     background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Better text rendering on mobile */
+    text-rendering: optimizeLegibility;
   }
 
-  /* Clean modern typography */
+  /* Headings — tight tracking, generous weight */
   h1, h2, h3, h4, h5, h6 {
-    letter-spacing: -0.01em;
-    line-height: 1.2;
-    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    font-weight: 700;
+    color: var(--color-foreground);
   }
 
   p {
-    line-height: 1.7;
+    line-height: 1.65;
   }
 
   /* Selection color */
   ::selection {
-    background: var(--color-violet-glow);
+    background: rgba(0, 168, 204, 0.2);
     color: var(--color-text);
   }
 
-  /* Gradient text */
+  /* Focus ring — accessible */
+  *:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  /* Remove default button/input styling */
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Better mobile tap targets */
+  @media (max-width: 640px) {
+    button, a {
+      touch-action: manipulation;
+    }
+  }
+}
+
+/* ============================================================
+   COMPONENT LAYER
+   ============================================================ */
+@layer components {
+  /* Gradient text — for hero headlines */
   .text-gradient {
     background: linear-gradient(135deg, #003d4d 0%, #00a8cc 100%);
     -webkit-background-clip: text;
@@ -139,106 +187,39 @@
     box-shadow: 0 0 20px rgba(0, 168, 204, 0.1);
   }
 
-  /* Glassmorphism card — light teal tint */
+  /* === Premium card — the workhorse === */
+  .card-premium {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 61, 77, 0.04), 0 1px 2px rgba(0, 61, 77, 0.06);
+  }
+
+  .card-premium:hover {
+    border-color: var(--color-border-bright);
+    box-shadow: 0 4px 16px rgba(0, 168, 204, 0.1), 0 2px 4px rgba(0, 61, 77, 0.06);
+  }
+
+  /* Glass — for floating elements over gradient backgrounds */
   .glass {
-    background: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--color-border-light);
   }
 
-  /* Premium card — white with teal border */
-  .card-premium {
-    background: #ffffff;
-    border: 1px solid var(--color-border-light);
-    border-radius: 1rem;
-    transition: all 0.2s ease;
-    box-shadow: 0 4px 24px rgba(0, 61, 77, 0.08);
-  }
-
-  .card-premium:hover {
-    border-color: var(--color-border-bright);
-    box-shadow: 0 8px 32px rgba(0, 168, 204, 0.12);
-  }
-
-  /* Dark teal card — for contrast sections */
-  .card-dark {
-    background: #003d4d;
-    border: 1px solid #004d5c;
-    border-radius: 1rem;
-    color: #f5f5f5;
-  }
-
-  /* Subtle grid background */
+  /* Subtle grid background — hero sections */
   .bg-grid {
     background-image:
-      linear-gradient(rgba(0, 168, 204, 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0, 168, 204, 0.04) 1px, transparent 1px);
+      linear-gradient(rgba(0, 168, 204, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 168, 204, 0.05) 1px, transparent 1px);
     background-size: 50px 50px;
   }
 
-  /* Radial glow background */
+  /* Radial glow — hero sections */
   .bg-radial-glow {
-    background: radial-gradient(ellipse at top, rgba(0, 168, 204, 0.08) 0%, transparent 60%);
-  }
-
-  /* Animations */
-  @keyframes blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0; }
-  }
-
-  .cursor-blink {
-    animation: blink 1s infinite;
-  }
-
-  @keyframes pulse-row {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 0.8; }
-  }
-
-  .pulse-row {
-    animation: pulse-row 1.5s ease-in-out infinite;
-  }
-
-  @keyframes fade-in-up {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .animate-fade-in-up {
-    animation: fade-in-up 0.6s ease-out forwards;
-  }
-
-  @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-  }
-
-  .shimmer {
-    background: linear-gradient(90deg, #f0f7f7 0%, #e0f7fa 50%, #f0f7f7 100%);
-    background-size: 200% 100%;
-    animation: shimmer 2s infinite;
-  }
-
-  /* Progress bar animation */
-  @keyframes progress-indeterminate {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(400%); }
-  }
-
-  .progress-indeterminate {
-    animation: progress-indeterminate 1.5s ease-in-out infinite;
-  }
-
-  /* Smooth drawer transition */
-  .drawer-enter {
-    transform: translateX(100%);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .drawer-enter-active {
-    transform: translateX(0);
+    background: radial-gradient(ellipse at top, rgba(0, 168, 204, 0.12) 0%, transparent 60%);
   }
 
   /* Hide scrollbar but keep functionality */
@@ -252,12 +233,58 @@
 }
 
 /* ============================================================
-   READABILITY FIX: Context-aware muted text (OUTSIDE @layer base
-   so these rules have higher specificity than Tailwind utilities)
-   text-muted-foreground is dark (#2a2a2a) by default — good on
-   teal page background and white card-premium backgrounds.
-   But on dark teal (bg-card) sections, dark text is invisible.
-   This rule auto-switches muted text to light when inside bg-card.
+   UTILITIES LAYER
+   ============================================================ */
+@layer utilities {
+  /* Animations */
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+  .cursor-blink { animation: blink 1s infinite; }
+
+  @keyframes pulse-row {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+  }
+  .pulse-row { animation: pulse-row 1.5s ease-in-out infinite; }
+
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .shimmer {
+    background: linear-gradient(90deg, #f0f7f7 0%, #e0f7fa 50%, #f0f7f7 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  @keyframes progress-indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+  }
+  .progress-indeterminate { animation: progress-indeterminate 1.5s ease-in-out infinite; }
+
+  /* Drawer transition */
+  .drawer-enter {
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .drawer-enter-active { transform: translateX(0); }
+}
+
+/* ============================================================
+   READABILITY FIX: Context-aware muted text
+   ============================================================
+   text-muted-foreground defaults to #5a6a70 — readable on white and
+   on the light teal page background. But on dark teal (bg-card)
+   sections like the sidebar and footer, we need light text.
    ============================================================ */
 
 /* Inside dark teal (bg-card) sections: muted text becomes light gray */
@@ -266,16 +293,21 @@
 }
 
 /* Exception: inside white card-premium (even within bg-card sections),
-   muted text stays dark for readability on white */
+   muted text stays readable on white */
 .card-premium .text-muted-foreground {
-  color: #2a2a2a;
+  color: #5a6a70;
+}
+
+/* Card-foreground on bg-card sections (the sidebar) — keep it bright */
+.bg-card .text-card-foreground\/70,
+.bg-card .text-card-foreground\/60,
+.bg-card .text-card-foreground\/80 {
+  color: rgba(245, 245, 245, 0.7);
 }
 
 /* ============================================================
    BLANK SPACE FIX: Trim excessive bottom padding on the last
-   section before the footer. Pages use py-24/py-32 on sections
-   for internal spacing, but the LAST section's bottom padding
-   creates a large gap before the footer. This reduces it.
+   section before the footer.
    ============================================================ */
 main > section:last-child,
 main > div:last-child > section:last-child {
@@ -289,10 +321,35 @@ main > div:last-child > section:last-child {
 }
 
 /* ============================================================
-   Clerk Auth Pages — Teal Theme Override
+   RESPONSIVE TWEAKS — Mobile-first
+   ============================================================ */
+
+/* On mobile, reduce vertical rhythm so content fits more on screen */
+@media (max-width: 640px) {
+  /* Tighter section padding on mobile */
+  .py-24 { padding-top: 3.5rem; padding-bottom: 3.5rem; }
+  .py-32 { padding-top: 4.5rem; padding-bottom: 4.5rem; }
+  /* Slightly smaller hero text on small phones */
+  h1 { font-size: 2.25rem; }
+  h2 { font-size: 1.875rem; }
+}
+
+/* On very small phones (<=360px), reduce body side padding */
+@media (max-width: 360px) {
+  body { font-size: 15px; }
+}
+
+/* Tablet adjustments */
+@media (min-width: 641px) and (max-width: 1024px) {
+  /* Slightly tighter section padding on tablet */
+  .py-32 { padding-top: 5rem; padding-bottom: 5rem; }
+}
+
+/* ============================================================
+   CLERK AUTH PAGES — Teal Theme Override
    ============================================================ */
 .cl-socialButtonsBlockButton {
-  border: 1px solid var(--color-border-light) !important;
+  border: 1px solid var(--color-border) !important;
   background: #ffffff !important;
   border-radius: 0.75rem !important;
 }
@@ -301,14 +358,14 @@ main > div:last-child > section:last-child {
   font-weight: 500 !important;
 }
 .cl-socialButtonsIconButton {
-  border: 1px solid var(--color-border-light) !important;
+  border: 1px solid var(--color-border) !important;
   background: #ffffff !important;
 }
 
 .cl-cardBox {
   background: #ffffff !important;
-  border: 1px solid var(--color-border-light) !important;
-  box-shadow: 0 8px 40px rgba(0, 61, 77, 0.12) !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: 0 8px 40px rgba(0, 61, 77, 0.08) !important;
 }
 
 .cl-headerTitle,
@@ -332,7 +389,7 @@ main > div:last-child > section:last-child {
 }
 
 .cl-formFieldInput:focus {
-  border-color: var(--color-violet) !important;
+  border-color: var(--color-primary) !important;
   box-shadow: 0 0 0 3px var(--color-violet-glow) !important;
 }
 
@@ -344,13 +401,13 @@ main > div:last-child > section:last-child {
 }
 
 .cl-formButtonPrimary {
-  background: var(--color-violet) !important;
+  background: var(--color-primary) !important;
   border-radius: 0.625rem !important;
   font-weight: 600 !important;
 }
 
 .cl-formButtonPrimary:hover {
-  background: var(--color-violet-hover) !important;
+  background: var(--color-primary-hover) !important;
 }
 
 .cl-identityPreview {
@@ -358,18 +415,27 @@ main > div:last-child > section:last-child {
   border-color: var(--color-border-light) !important;
 }
 
-/* Scrollbar styling — teal */
+/* ============================================================
+   SCROLLBAR STYLING
+   ============================================================ */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.3);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 61, 77, 0.3);
-  border-radius: 4px;
+  background: rgba(0, 61, 77, 0.2);
+  border-radius: 5px;
+  border: 2px solid var(--color-background);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 168, 204, 0.5);
+  background: rgba(0, 168, 204, 0.4);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 61, 77, 0.2) transparent;
 }

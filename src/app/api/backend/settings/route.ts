@@ -15,6 +15,8 @@
  *   - target_audience     (free text — who the user is reaching out to)
  *   - copywriting_style   (enum: dan_kennedy | donald_miller | ray_edwards |
  *                          david_ogilvy | jay_abraham | gary_halbert)
+ *   - company_name        (free text — used in outreach message sign-offs)
+ *   - sender_name         (free text — used in outreach message sign-offs)
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
@@ -37,12 +39,16 @@ interface UserSettings {
   user_service: string
   target_audience: string
   copywriting_style: CopywritingStyle
+  company_name: string
+  sender_name: string
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
   user_service: '',
   target_audience: '',
   copywriting_style: 'david_ogilvy',
+  company_name: '',
+  sender_name: '',
 }
 
 function normalizeStyle(value: unknown): CopywritingStyle {
@@ -91,6 +97,8 @@ export async function GET(req: NextRequest) {
             user_service: s.user_service || '',
             target_audience: s.target_audience || '',
             copywriting_style: normalizeStyle(s.copywriting_style),
+            company_name: s.company_name || '',
+            sender_name: s.sender_name || '',
           },
         })
       }
@@ -105,7 +113,7 @@ export async function GET(req: NextRequest) {
     }
 
     const sbRes = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?select=user_service,target_audience,copywriting_style&id=eq.${encodeURIComponent(userId)}&limit=1`,
+      `${supabaseUrl}/rest/v1/profiles?select=user_service,target_audience,copywriting_style,company_name,sender_name&id=eq.${encodeURIComponent(userId)}&limit=1`,
       {
         headers: {
           'apikey': serviceKey,
@@ -130,6 +138,8 @@ export async function GET(req: NextRequest) {
         user_service: r.user_service || '',
         target_audience: r.target_audience || '',
         copywriting_style: normalizeStyle(r.copywriting_style),
+        company_name: r.company_name || '',
+        sender_name: r.sender_name || '',
       },
     })
   } catch (error: any) {
@@ -166,11 +176,15 @@ export async function PUT(req: NextRequest) {
     const userService = typeof body?.user_service === 'string' ? body.user_service.slice(0, 500) : ''
     const targetAudience = typeof body?.target_audience === 'string' ? body.target_audience.slice(0, 500) : ''
     const copywritingStyle = normalizeStyle(body?.copywriting_style)
+    const companyName = typeof body?.company_name === 'string' ? body.company_name.slice(0, 200) : ''
+    const senderName = typeof body?.sender_name === 'string' ? body.sender_name.slice(0, 200) : ''
 
     const payload: UserSettings = {
       user_service: userService,
       target_audience: targetAudience,
       copywriting_style: copywritingStyle,
+      company_name: companyName,
+      sender_name: senderName,
     }
 
     const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || ''
@@ -189,6 +203,8 @@ export async function PUT(req: NextRequest) {
           user_service: payload.user_service,
           target_audience: payload.target_audience,
           copywriting_style: payload.copywriting_style,
+          company_name: payload.company_name,
+          sender_name: payload.sender_name,
         }),
       })
 
@@ -201,6 +217,8 @@ export async function PUT(req: NextRequest) {
             user_service: s?.user_service ?? payload.user_service,
             target_audience: s?.target_audience ?? payload.target_audience,
             copywriting_style: normalizeStyle(s?.copywriting_style ?? payload.copywriting_style),
+            company_name: s?.company_name ?? payload.company_name,
+            sender_name: s?.sender_name ?? payload.sender_name,
           },
         })
       }
@@ -231,6 +249,8 @@ export async function PUT(req: NextRequest) {
           user_service: payload.user_service,
           target_audience: payload.target_audience,
           copywriting_style: payload.copywriting_style,
+          company_name: payload.company_name,
+          sender_name: payload.sender_name,
           updated_at: new Date().toISOString(),
         }),
       }
@@ -252,6 +272,8 @@ export async function PUT(req: NextRequest) {
         user_service: r.user_service ?? payload.user_service,
         target_audience: r.target_audience ?? payload.target_audience,
         copywriting_style: normalizeStyle(r.copywriting_style ?? payload.copywriting_style),
+        company_name: r.company_name ?? payload.company_name,
+        sender_name: r.sender_name ?? payload.sender_name,
       },
     })
   } catch (error: any) {
