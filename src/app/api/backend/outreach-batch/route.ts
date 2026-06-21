@@ -20,7 +20,8 @@ import { auth } from '@clerk/nextjs/server'
 export const dynamic = 'force-dynamic'
 
 // Batch generation can take a while (one AI call per lead).
-// Allow up to 5 minutes.
+// Allow up to 5 minutes (Vercel Pro plan supports up to 300s).
+// On Vercel Hobby plan, this is capped at 60s — large batches may timeout.
 export const maxDuration = 300
 
 export async function POST(req: NextRequest) {

@@ -1004,7 +1004,14 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
         setBatchResult(data.detail || data.error || `Failed to generate messages (${res.status}).`)
       }
     } catch (err: any) {
-      setBatchResult(err.message || 'Something went wrong. Check your connection and try again.')
+      // Handle Vercel FUNCTION_INVOCATION_TIMEOUT — the batch is likely still
+      // processing on the backend even though the frontend proxy timed out.
+      const errMsg = err.message || ''
+      if (errMsg.includes('TIMEOUT') || errMsg.includes('Failed to fetch') || errMsg.includes('network')) {
+        setBatchResult('The server is still generating messages in the background. Please wait 1-2 minutes, then refresh the page to see them.')
+      } else {
+        setBatchResult(errMsg || 'Something went wrong. Check your connection and try again.')
+      }
     } finally {
       setBatchLoading(false)
     }
