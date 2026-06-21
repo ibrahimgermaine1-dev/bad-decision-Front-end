@@ -1,16 +1,14 @@
 'use client'
 
 /**
- * PRICING PAGE — Premium Dark Theme
- * Long-form, value-driven, Dan Kennedy copy.
- * Paystack payment integration preserved.
+ * PRICING PAGE — Recurring Subscriptions via Paystack Plans API
+ * User clicks "Subscribe" → backend creates subscription → user is
+ * redirected to Paystack to authorize recurring billing.
  */
 import { useState } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { useAppStore } from '@/stores/app-store'
-import { fetchCreditBalance, verifyPayment } from '@/lib/api'
 import { TIERS, type TierId, getTierById } from '@/lib/pricing'
-import Script from 'next/script'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -38,7 +36,7 @@ export default function PricingPage() {
   const router = useRouter()
   const isNigeria = userCountry === 'NG'
 
-  const handlePurchase = (tierId: TierId) => {
+  const handlePurchase = async (tierId: TierId) => {
     const selectedTier = getTierById(tierId)
 
     if (selectedTier.planType === 'free') {
@@ -51,100 +49,34 @@ export default function PricingPage() {
       return
     }
 
-    const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
-    if (!publicKey) {
-      setPaymentError('Payment is not ready yet. Please contact support.')
-      return
-    }
-
     setPaymentProcessing(true)
     setPaymentError('')
 
     try {
-      if (typeof window !== 'undefined' && (window as any).PaystackPop) {
-        const handler = (window as any).PaystackPop.setup({
-          ref: crypto.randomUUID(),
-          email: user?.primaryEmailAddress?.emailAddress || '',
-          amount: selectedTier.priceKobo,
-          key: publicKey,
-          currency: 'NGN',
-          metadata: {
-            user_id: userId || '',
-            plan: selectedTier.id,
-            credits: selectedTier.credits,
-            custom_fields: [
-              { display_name: 'Plan', variable_name: 'plan', value: selectedTier.id },
-              { display_name: 'Credits', variable_name: 'credits', value: selectedTier.credits.toString() },
-            ],
-          },
-          callback: (response: any) => {
-            const reference = response?.reference || ''
-            if (!reference) {
-              // No reference returned — payment likely didn't complete.
-              setPaymentError('Payment did not complete. No reference was returned. Please try again.')
-              setPaymentProcessing(false)
-              return
-            }
+      // Call backend to initialize a Paystack subscription
+      const res = await fetch('/api/backend/subscriptions/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: tierId }),
+      })
 
-            // Verify server-side BEFORE updating tier/balance. This prevents
-            // the optimistic-update race where the dashboard shows the new
-            // tier before the backend has actually credited the user.
-            verifyPayment(reference).then((result) => {
-              if (result.verified) {
-                // Verification succeeded — backend has credited the user.
-                // NOW we can safely update local state.
-                if (result.balance) {
-                  setCreditBalance({
-                    credits_balance: result.balance.credits_balance ?? 0,
-                    credits_reserved: result.balance.credits_reserved ?? 0,
-                    total_purchased: result.balance.total_purchased ?? 0,
-                  })
-                }
-                setTier(tierId)
-                setPaymentProcessing(false)
-                router.push('/dashboard')
-              } else {
-                // Verification failed — keep the user on the pricing page so
-                // they can retry. Don't update tier. The Paystack webhook
-                // may still process the payment asynchronously; if so, the
-                // user will see the credits on their next dashboard load.
-                setPaymentError(
-                  result.status === 'error'
-                    ? 'We could not verify your payment right now. If you were charged, your credits will appear within a minute.'
-                    : 'Payment was not successful. Please try again.'
-                )
-                setPaymentProcessing(false)
-              }
-            }).catch(() => {
-              // Network error during verification — fall back to a delayed
-              // balance fetch. Don't optimistically upgrade the tier; let the
-              // user see real data instead of fake state.
-              setPaymentError('Payment was processed but verification is delayed. Your credits will appear within a minute.')
-              setTimeout(async () => {
-                try {
-                  const balance = await fetchCreditBalance()
-                  setCreditBalance({
-                    credits_balance: balance.credits_balance ?? 0,
-                    credits_reserved: balance.credits_reserved ?? 0,
-                    total_purchased: balance.total_purchased ?? 0,
-                  })
-                } catch {}
-                setPaymentProcessing(false)
-                router.push('/dashboard')
-              }, 3000)
-            })
-          },
-          onClose: () => {
-            setPaymentProcessing(false)
-          },
-        })
-        handler.openIframe()
+      const data = await res.json()
+
+      if (!res.ok) {
+        setPaymentError(data.detail || data.error || 'Could not start subscription. Please try again.')
+        setPaymentProcessing(false)
+        return
+      }
+
+      // Redirect to Paystack authorization URL
+      if (data.authorization_url) {
+        window.location.href = data.authorization_url
       } else {
-        setPaymentError('Payment is still loading. Try again in a moment.')
+        setPaymentError('No authorization URL returned. Please try again.')
         setPaymentProcessing(false)
       }
-    } catch (err) {
-      setPaymentError('Payment failed. Please try again.')
+    } catch (err: any) {
+      setPaymentError(err.message || 'Payment failed. Please try again.')
       setPaymentProcessing(false)
     }
   }
@@ -153,7 +85,6 @@ export default function PricingPage() {
 
   return (
     <div className="bg-background">
-      <Script src="https://js.paystack.co/v2/inline.js" />
 
       {/* Hero */}
       <section className="bg-radial-glow bg-grid pt-16 pb-20 sm:pt-24 sm:pb-28">

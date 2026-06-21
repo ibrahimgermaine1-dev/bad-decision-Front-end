@@ -65,6 +65,42 @@ export async function POST(req: NextRequest) {
 
     const body = JSON.parse(rawBody)
     const { event, data } = body
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+
+    // Handle subscription lifecycle events
+    if (event === 'subscription.create') {
+      console.log(`[PAYSTACK_WEBHOOK] Subscription created: ${data.subscription_code}`)
+      return NextResponse.json({ ok: true })
+    }
+
+    if (event === 'subscription.disable') {
+      // Mark subscription as canceled in DB
+      const subCode = data.subscription_code
+      if (subCode) {
+        await fetch(
+          `${supabaseUrl}/rest/v1/subscriptions?paystack_subscription_code=eq.${encodeURIComponent(subCode)}`,
+          { method: 'PATCH', headers, body: JSON.stringify({ status: 'canceled', canceled_at: new Date().toISOString() }) }
+        )
+      }
+      console.log(`[PAYSTACK_WEBHOOK] Subscription disabled: ${subCode}`)
+      return NextResponse.json({ ok: true })
+    }
+
+    if (event === 'invoice.payment_failed') {
+      // Mark subscription as past_due
+      const subCode = data.subscription?.subscription_code
+      if (subCode) {
+        await fetch(
+          `${supabaseUrl}/rest/v1/subscriptions?paystack_subscription_code=eq.${encodeURIComponent(subCode)}`,
+          { method: 'PATCH', headers, body: JSON.stringify({ status: 'past_due' }) }
+        )
+      }
+      console.log(`[PAYSTACK_WEBHOOK] Payment failed for subscription: ${subCode}`)
+      return NextResponse.json({ ok: true })
+    }
+
+    // Only process charge.success events for credit grants
     if (event !== 'charge.success') return NextResponse.json({ ok: true })
 
     const userEmail = data.customer?.email
@@ -77,8 +113,6 @@ export async function POST(req: NextRequest) {
       console.error(`[PAYSTACK_WEBHOOK] Invalid amount: ${amount} (ref ${reference})`)
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
     }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 
     // === USER LOOKUP ===
     // Trust metadata.user_id (set by our own frontend) for identification only.
@@ -155,7 +189,31 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    console.log(`[PAYSTACK_WEBHOOK] Payment verified: ${userEmail} -> ${creditsToAdd} credits${purchasedTier ? ` (${purchasedTier})` : ''} ref=${reference} amount=${amount} ${currency}`)
+    // === SUBSCRIPTION STATUS UPDATE ===
+    // If this is a subscription payment, update the subscription record
+    const isSubscription = metadata.type === 'subscription'
+    if (isSubscription && purchasedTier) {
+      // Update the subscription row from 'trialing' to 'active'
+      // and set the next billing date (30 days from now for monthly plans)
+      const nextBillingDate = new Date()
+      nextBillingDate.setDate(nextBillingDate.getDate() + 30)
+
+      await fetch(
+        `${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${encodeURIComponent(userId)}&status=eq.trialing`,
+        {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            status: 'active',
+            current_period_end: nextBillingDate.toISOString(),
+            paystack_subscription_code: data.subscription?.subscription_code || reference,
+            updated_at: new Date().toISOString(),
+          }),
+        }
+      )
+    }
+
+    console.log(`[PAYSTACK_WEBHOOK] Payment verified: ${userEmail} -> ${creditsToAdd} credits${purchasedTier ? ` (${purchasedTier})` : ''}${isSubscription ? ' [SUBSCRIPTION]' : ''} ref=${reference} amount=${amount} ${currency}`)
 
     // Fire payment receipt email via backend (best-effort, never blocks the webhook response)
     const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || ''
