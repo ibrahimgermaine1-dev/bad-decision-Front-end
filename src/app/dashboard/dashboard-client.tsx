@@ -936,25 +936,62 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
   const [sortBy, setSortBy] = useState<string>('default')
   const [batchLoading, setBatchLoading] = useState(false)
   const [batchResult, setBatchResult] = useState('')
+  // Modal state for the "Write Messages for All" smart dialog.
+  // When the user clicks the batch button, we check how many leads already
+  // have outreach messages. If some do, we show this modal to let the user
+  // choose: generate only for missing, or override all.
+  const [showBatchModal, setShowBatchModal] = useState(false)
+  const [leadsWithMessages, setLeadsWithMessages] = useState(0)
+  const [leadsWithoutMessages, setLeadsWithoutMessages] = useState(0)
 
   const handleExport = () => {
     const csv = exportLeadsToCsv(leads, engineType || undefined)
     downloadCsv(csv, `bad-decision-leads-${Date.now()}.csv`)
   }
 
-  const handleBatchOutreach = async () => {
+  // Count how many leads already have outreach messages.
+  // A lead "has messages" if outreach_email is set and not 'ABSENT'.
+  const countLeadsWithMessages = useCallback(() => {
+    const withMsg = leads.filter(l =>
+      l.outreach_email && l.outreach_email !== 'ABSENT'
+    ).length
+    const withoutMsg = leads.length - withMsg
+    return { withMsg, withoutMsg }
+  }, [leads])
+
+  // When the user clicks "Write Messages for All", decide whether to show
+  // the modal (some leads have messages) or proceed directly (no leads have messages).
+  const handleBatchOutreachClick = () => {
+    if (!taskId || leads.length === 0) return
+    const { withMsg, withoutMsg } = countLeadsWithMessages()
+    setLeadsWithMessages(withMsg)
+    setLeadsWithoutMessages(withoutMsg)
+
+    if (withMsg === 0) {
+      // No leads have messages yet — proceed directly, generate for all.
+      runBatchGeneration(false)
+    } else {
+      // Some leads have messages — show the modal so the user can choose.
+      setShowBatchModal(true)
+    }
+  }
+
+  // The actual API call. forceRegenerate=false skips leads with existing messages.
+  // forceRegenerate=true overrides all.
+  const runBatchGeneration = async (forceRegenerate: boolean) => {
     if (!taskId) return
+    setShowBatchModal(false)
     setBatchLoading(true)
     setBatchResult('')
     try {
       const res = await fetch('/api/backend/outreach-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task_id: taskId }),
+        body: JSON.stringify({ task_id: taskId, force_regenerate: forceRegenerate }),
       })
       const data = await res.json()
       if (res.ok) {
-        setBatchResult(`Done! Generated messages for ${data.generated} out of ${data.total_leads} leads.`)
+        setBatchResult(data.message || `Done! Generated messages for ${data.generated} out of ${data.total_leads} leads.`)
         onLeadsUpdated?.()
       } else {
         setBatchResult(data.detail || data.error || 'Failed to generate messages.')
@@ -1010,7 +1047,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
     if (!taskId) return null
     return (
       <button
-        onClick={handleBatchOutreach}
+        onClick={handleBatchOutreachClick}
         disabled={batchLoading}
         className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[13px] font-semibold transition-colors disabled:opacity-50"
       >
@@ -1031,6 +1068,95 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
           </>
         )}
       </button>
+    )
+  }
+
+  // Smart modal: shown when some leads already have outreach messages.
+  // Lets the user choose between generating only for missing leads or
+  // overriding all existing messages.
+  const renderBatchModal = () => {
+    if (!showBatchModal) return null
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+        onClick={() => setShowBatchModal(false)}
+      >
+        <div
+          className="bg-card border border-border rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg font-bold text-foreground">Write Messages for All</h3>
+              <p className="text-[13px] text-muted-foreground mt-1">
+                {leadsWithMessages} {leadsWithMessages === 1 ? 'lead already has' : 'leads already have'} outreach messages.
+                {leadsWithoutMessages > 0 && ` ${leadsWithoutMessages} ${leadsWithoutMessages === 1 ? 'lead does' : 'leads do'} not.`}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2.5">
+            {leadsWithoutMessages > 0 && (
+              <button
+                onClick={() => runBatchGeneration(false)}
+                disabled={batchLoading}
+                className="w-full text-left p-4 rounded-xl border border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 transition-colors disabled:opacity-50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                    <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-bold text-foreground">
+                      Generate only for {leadsWithoutMessages} {leadsWithoutMessages === 1 ? 'lead' : 'leads'} without messages
+                    </p>
+                    <p className="text-[12px] text-muted-foreground mt-0.5">
+                      Keeps the {leadsWithMessages} existing {leadsWithMessages === 1 ? 'message' : 'messages'} unchanged.
+                    </p>
+                  </div>
+                </div>
+              </button>
+            )}
+
+            <button
+              onClick={() => runBatchGeneration(true)}
+              disabled={batchLoading}
+              className="w-full text-left p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/60 hover:border-primary/40 transition-colors disabled:opacity-50"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] font-bold text-foreground">
+                    Regenerate for ALL {leads.length} {leads.length === 1 ? 'lead' : 'leads'}
+                  </p>
+                  <p className="text-[12px] text-muted-foreground mt-0.5">
+                    Overrides the {leadsWithMessages} existing {leadsWithMessages === 1 ? 'message' : 'messages'} with fresh versions.
+                  </p>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <button
+            onClick={() => setShowBatchModal(false)}
+            disabled={batchLoading}
+            className="w-full text-center text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors py-2"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
     )
   }
 
@@ -1201,6 +1327,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
             {renderExportBtn()}
             {renderBatchBtn()}
             {renderBatchResult()}
+            {renderBatchModal()}
           </div>
         </div>
         {renderSortBar([
@@ -1297,6 +1424,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
             {renderExportBtn()}
             {renderBatchBtn()}
             {renderBatchResult()}
+            {renderBatchModal()}
           </div>
         </div>
         {renderSortBar([
@@ -1389,6 +1517,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
             {renderExportBtn()}
             {renderBatchBtn()}
             {renderBatchResult()}
+            {renderBatchModal()}
           </div>
         </div>
         {renderSortBar([
@@ -1473,6 +1602,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
             {renderExportBtn()}
             {renderBatchBtn()}
             {renderBatchResult()}
+            {renderBatchModal()}
           </div>
         </div>
         {renderSortBar([
@@ -1546,6 +1676,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
           {renderExportBtn()}
           {renderBatchBtn()}
           {renderBatchResult()}
+          {renderBatchModal()}
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3">

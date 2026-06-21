@@ -2,8 +2,12 @@
  * Backend Proxy: POST /api/backend/outreach-batch
  * Generate personalized outreach messages for ALL leads in a task at once.
  *
- * Body: { task_id: string }
- * Forwards to backend: POST /api/outreach/generate-batch with { task_id }
+ * Body: { task_id: string, force_regenerate?: boolean }
+ * Forwards to backend: POST /api/outreach/generate-batch with same body.
+ *
+ * force_regenerate:
+ *   - false (default): only generate for leads with no existing messages
+ *   - true: override existing messages, regenerate for ALL leads
  *
  * Authenticates via Clerk — only the signed-in user can request batch
  * generation. The backend then looks up the leads + the user's saved
@@ -32,6 +36,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'task_id is required' }, { status: 400 })
     }
 
+    const forceRegenerate = Boolean(body?.force_regenerate)
+
     const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || ''
     const apiSecret = process.env.BACKEND_API_SECRET || ''
 
@@ -45,7 +51,7 @@ export async function POST(req: NextRequest) {
     const res = await fetch(`${backendUrl}/api/outreach/generate-batch`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ task_id: taskId }),
+      body: JSON.stringify({ task_id: taskId, force_regenerate: forceRegenerate }),
     })
 
     const data = await res.json().catch(() => ({}))
