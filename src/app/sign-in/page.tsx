@@ -54,6 +54,9 @@ export default function SignInPage() {
             Get 50 free leads
           </a>
         </p>
+        <p className="text-center text-[11px] text-muted-foreground mt-3">
+          Forgot password? Use the &ldquo;Forgot password?&rdquo; link on the sign-in form above.
+        </p>
       </div>
     </div>
   )
