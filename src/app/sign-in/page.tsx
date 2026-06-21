@@ -1,12 +1,43 @@
 'use client'
 
+import { Suspense } from 'react'
 import { SignIn } from '@clerk/nextjs'
 import { useSearchParams } from 'next/navigation'
 
-export default function SignInPage() {
+function SignInContent() {
   const searchParams = useSearchParams()
   const redirectUrl = searchParams.get('redirect_url') || '/dashboard'
 
+  return (
+    <SignIn
+      routing="path"
+      path="/sign-in"
+      signUpUrl="/sign-up"
+      afterSignInUrl={redirectUrl}
+      afterSignUpUrl={redirectUrl}
+      redirectUrl={redirectUrl}
+      appearance={{
+        elements: {
+          rootBox: 'w-full',
+          card: 'bg-transparent border-0 shadow-none p-0',
+          headerTitle: 'text-foreground',
+          headerSubtitle: 'text-muted-foreground',
+          socialButtonsBlockButton: 'bg-muted border border-border hover:bg-muted/80 text-foreground rounded-lg',
+          socialButtonsProviderText: 'text-foreground',
+          formFieldLabel: 'text-muted-foreground text-[13px]',
+          formFieldInput: 'bg-input border border-border text-foreground rounded-lg focus:border-primary',
+          formButtonPrimary: 'bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold',
+          footerActionLink: 'text-primary',
+          formHeaderTitle: 'text-foreground',
+          formHeaderSubtitle: 'text-muted-foreground',
+          alternativeMethods: 'text-muted-foreground',
+        },
+      }}
+    />
+  )
+}
+
+export default function SignInPage() {
   return (
     <div className="min-h-screen bg-background bg-radial-glow bg-grid flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
@@ -25,31 +56,9 @@ export default function SignInPage() {
         </div>
 
         <div className="card-premium p-6 sm:p-8">
-          <SignIn
-            routing="path"
-            path="/sign-in"
-            signUpUrl="/sign-up"
-            afterSignInUrl={redirectUrl}
-            afterSignUpUrl={redirectUrl}
-            redirectUrl={redirectUrl}
-            appearance={{
-              elements: {
-                rootBox: 'w-full',
-                card: 'bg-transparent border-0 shadow-none p-0',
-                headerTitle: 'text-foreground',
-                headerSubtitle: 'text-muted-foreground',
-                socialButtonsBlockButton: 'bg-muted border border-border hover:bg-muted/80 text-foreground rounded-lg',
-                socialButtonsProviderText: 'text-foreground',
-                formFieldLabel: 'text-muted-foreground text-[13px]',
-                formFieldInput: 'bg-input border border-border text-foreground rounded-lg focus:border-primary',
-                formButtonPrimary: 'bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold',
-                footerActionLink: 'text-primary',
-                formHeaderTitle: 'text-foreground',
-                formHeaderSubtitle: 'text-muted-foreground',
-                alternativeMethods: 'text-muted-foreground',
-              },
-            }}
-          />
+          <Suspense fallback={<div className="h-64 animate-pulse bg-muted rounded-lg" />}>
+            <SignInContent />
+          </Suspense>
         </div>
 
         <p className="text-center text-[13px] text-muted-foreground mt-6">
