@@ -22,6 +22,7 @@ import { startSearch, pollUntilComplete, fetchCreditBalance, verifyPayment, fetc
 import { CREDIT_ADDONS, type TierId, formatAddonPrice, isEngineAvailable } from '@/lib/pricing'
 import { LocationSelector } from '@/components/location-selector'
 import { exportLeadsToCsv, downloadCsv } from '@/lib/csv-shield'
+import { ErrorBoundary } from '@/components/error-boundary'
 
 type DashView = 'search' | 'collections' | 'credits' | 'support' | 'messages' | 'settings'
 
@@ -594,13 +595,14 @@ export function DashboardShell() {
       {/* ===== MAIN CONTENT ===== */}
       <main className="flex-1 min-w-0 pt-[calc(3.5rem+env(safe-area-inset-top))] lg:pt-0">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          {activeView === 'search' && (
-            <SearchView
-              selectedEngine={selectedEngine}
-              setSelectedEngine={setSelectedEngine}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              selectedCountry={selectedCountry}
+          <ErrorBoundary>
+            {activeView === 'search' && (
+              <SearchView
+                selectedEngine={selectedEngine}
+                setSelectedEngine={setSelectedEngine}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                selectedCountry={selectedCountry}
               setSelectedCountry={handleCountryChange}
               selectedState={selectedState}
               setSelectedState={setSelectedState}
@@ -638,6 +640,7 @@ export function DashboardShell() {
           {activeView === 'support' && (
             <SupportView />
           )}
+          </ErrorBoundary>
         </div>
       </main>
     </div>
