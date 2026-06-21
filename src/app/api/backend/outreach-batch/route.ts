@@ -54,7 +54,14 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({ task_id: taskId, force_regenerate: forceRegenerate }),
     })
 
-    const data = await res.json().catch(() => ({}))
+    // Get the response as text first, then try to parse as JSON.
+    const responseText = await res.text()
+    let data: any
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      data = { error: responseText.slice(0, 500) || `Backend error (${res.status})` }
+    }
 
     if (!res.ok) {
       return NextResponse.json(

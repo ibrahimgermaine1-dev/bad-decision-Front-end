@@ -2499,9 +2499,16 @@ function OutreachMessages({ lead }: { lead: Lead }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lead_id: lead.id }),
       })
-      const data = await res.json()
+      // Handle non-JSON responses gracefully (backend may return plain text errors)
+      const responseText = await res.text()
+      let data: any
+      try {
+        data = JSON.parse(responseText)
+      } catch {
+        data = { error: responseText.slice(0, 200) || `Server error (${res.status})` }
+      }
       if (!res.ok) {
-        setError(data.detail || data.error || 'Could not generate messages.')
+        setError(data.detail || data.error || `Could not generate messages (${res.status}).`)
       } else {
         setMessages({
           subject: data.outreach_email_subject && data.outreach_email_subject !== 'ABSENT' ? data.outreach_email_subject : '',
@@ -2512,7 +2519,7 @@ function OutreachMessages({ lead }: { lead: Lead }) {
         setExpanded(true)
       }
     } catch (err: any) {
-      setError(err.message || 'Something went wrong.')
+      setError(err.message || 'Something went wrong. Check your connection and try again.')
     } finally {
       setGenerating(false)
     }

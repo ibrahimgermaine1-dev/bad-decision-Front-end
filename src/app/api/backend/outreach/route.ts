@@ -29,7 +29,20 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({ lead_id: body.lead_id }),
     })
 
-    const data = await res.json()
+    // Get the response as text first, then try to parse as JSON.
+    // The backend may return plain text errors (e.g., "Internal Server Error")
+    // which would cause res.json() to throw a SyntaxError.
+    const responseText = await res.text()
+    let data: any
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      // Response is not JSON — return a clean error
+      return NextResponse.json(
+        { error: responseText.slice(0, 500) || `Backend error (${res.status})` },
+        { status: res.status }
+      )
+    }
 
     if (!res.ok) {
       return NextResponse.json(data, { status: res.status })
