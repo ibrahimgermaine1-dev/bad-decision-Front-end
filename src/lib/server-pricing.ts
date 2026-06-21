@@ -22,17 +22,18 @@ export interface CreditGrant {
  */
 export const PRICING = {
   // Tier upgrades (one-time credit purchases that also bump the tier)
+  // Prices verified June 2026: $10/$20/$45 = ₦13,500/₦27,000/₦61,000 at ₦1,369/$
   TIERS: {
-    starter: { credits: 1500, ngnKobo: 1_200_000, usdCents: 1500 },
-    growth:  { credits: 3000, ngnKobo: 2_000_000, usdCents: 2500 },
-    pro:     { credits: 5000, ngnKobo: 2_800_000, usdCents: 3500 },
+    starter: { credits: 500,  ngnKobo: 1_350_000, usdCents: 1000 },
+    growth:  { credits: 1500, ngnKobo: 2_700_000, usdCents: 2000 },
+    pro:     { credits: 4000, ngnKobo: 6_100_000, usdCents: 4500 },
   },
-  // Credit top-up packs (no tier change)
+  // Credit top-up packs (no tier change) — priced higher per-credit than tiers
   ADDONS: [
-    { credits: 500,  ngnKobo:   400_000, usdCents:  500 },
-    { credits: 1500, ngnKobo: 1_200_000, usdCents: 1500 },
-    { credits: 3000, ngnKobo: 2_000_000, usdCents: 2500 },
-    { credits: 5000, ngnKobo: 2_800_000, usdCents: 3500 },
+    { credits: 100,  ngnKobo:   400_000, usdCents:  300 },
+    { credits: 500,  ngnKobo: 1_650_000, usdCents: 1200 },
+    { credits: 1500, ngnKobo: 4_100_000, usdCents: 3000 },
+    { credits: 3000, ngnKobo: 7_550_000, usdCents: 5500 },
   ],
 } as const
 
@@ -78,9 +79,9 @@ export function resolveCreditGrant(amount: number, currency: string): CreditGran
       }
     }
     // Fallback: amount doesn't match a known package. Use a fair per-kobo rate
-    // (1 credit per 80 kobo = 1 credit per ₦0.80). This handles edge cases
-    // like Paystack fees deducted from the amount or manually-initiated payments.
-    const fallbackCredits = Math.max(1, Math.round(amount / 80))
+    // (1 credit per 110 kobo = 1 credit per ₦1.10). Based on the Small add-on
+    // pack: ₦4,000 / 100 credits = ₦40/credit. Rounded up to 110 for safety.
+    const fallbackCredits = Math.max(1, Math.round(amount / 110))
     return {
       credits: fallbackCredits,
       tier: null,

@@ -165,7 +165,7 @@ export default function PricingPage() {
             Start free. <br /><span className="text-gradient-violet">Pay only when it works.</span>
           </h1>
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-6">
-            You get 100 free credits the moment you sign up. No credit card needed.
+            You get 50 free credits the moment you sign up. No credit card needed.
             When you want more, pick a plan that fits. You are never locked in.
           </p>
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-card border border-border text-[13px]">
@@ -285,7 +285,7 @@ export default function PricingPage() {
 
           <div className="mt-10 text-center">
             <p className="text-[14px] text-muted-foreground">
-              Every new account gets <span className="font-semibold text-foreground">100 free credits</span>. No credit card needed.
+              Every new account gets <span className="font-semibold text-foreground">50 free credits</span>. No credit card needed.
             </p>
           </div>
         </div>

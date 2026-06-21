@@ -51,7 +51,7 @@ export default function SignInPage() {
         <p className="text-center text-[13px] text-muted-foreground mt-6">
           New here?{' '}
           <a href="/sign-up" className="text-primary hover:text-primary/80 font-semibold">
-            Get 100 free leads
+            Get 50 free leads
           </a>
         </p>
       </div>

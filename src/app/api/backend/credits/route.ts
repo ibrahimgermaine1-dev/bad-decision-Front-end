@@ -2,7 +2,7 @@
  * Backend Proxy: GET /api/backend/credits
  * Fetches user credit balance from Supabase (credit_balances table).
  * FALLBACK: If the user has no credit_balances row (Clerk webhook may have
- * failed), auto-creates one with 100 free credits using direct Supabase
+ * failed), auto-creates one with 50 free credits using direct Supabase
  * inserts (more reliable than the RPC which can fail on email constraints).
  * Rate limited. Secure: uses service role key server-side only.
  */

@@ -35,7 +35,7 @@ export default function CaseStudiesPage() {
         'I had been freelancing for three years. I was good at what I did. My clients loved my work. But finding new clients was killing me. I spent more time looking for work than doing work.',
         'I tried cold email. I bought a list. I sent 200 emails. I got 180 bounces. I got 2 replies. Neither turned into a client. My email reputation was wrecked. I could not even send emails to my own friends without landing in spam.',
         'I was ready to give up and get a job. Then I saw a post about Bad Decision. The promise was simple. Every email gets tested before you pay. I did not believe it. But I had nothing to lose.',
-        'I used my 100 free leads to find businesses in London without websites. I sent my pitch. No bounces. Zero. I got 7 replies. Three turned into calls. One signed that week.',
+        'I used my 50 free leads to find businesses in London without websites. I sent my pitch. No bounces. Zero. I got 7 replies. Three turned into calls. One signed that week.',
         'I bought the Pro plan that day. I have been on it for four months now. I have closed 14 clients. I have a waiting list. I turn down work. I never thought I would say that.',
         'The best part is I trust my emails now. When I hit send, I know it lands. I know a real person sees it. That changes everything about how I feel about cold outreach.',
       ],

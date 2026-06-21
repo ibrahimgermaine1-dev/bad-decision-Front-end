@@ -105,7 +105,7 @@ const FAQ_SECTIONS: FAQSection[] = [
       {
         question: 'How many free credits do I get?',
         answer:
-          'You get 100 free credits the moment you sign up. No credit card. No catch. You can run real searches and get real contacts. If you like what you see, you can buy more. If you do not, you walk away having lost nothing.',
+          'You get 50 free credits the moment you sign up. No credit card. No catch. You can run real searches and get real contacts. If you like what you see, you can buy more. If you do not, you walk away having lost nothing.',
       },
       {
         question: 'What is a credit?',
@@ -293,7 +293,7 @@ export default function FAQPage() {
               href="/sign-up"
               className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-secondary border border-border hover:border-primary/50 text-card-foreground text-base font-semibold transition-all"
             >
-              Get 100 Free Credits
+              Get 50 Free Credits
             </Link>
           </div>
         </div>

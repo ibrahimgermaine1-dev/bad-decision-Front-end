@@ -123,7 +123,7 @@ export default function GuaranteePage() {
             href="/sign-up"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-primary hover:bg-primary/90 text-white text-base font-semibold transition-all shadow-lg shadow-primary/30"
           >
-            Get My 100 Free Tested Leads
+            Get My 50 Free Tested Leads
           </Link>
         </div>
       </section>

@@ -84,7 +84,7 @@ function HeroSection() {
             href="/sign-up"
             className="w-full sm:w-auto px-8 py-4 rounded-xl bg-primary hover:bg-primary/90 text-white text-base font-semibold transition-all shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5"
           >
-            Get 100 Free Leads Today
+            Get 50 Free Leads Today
           </Link>
           <Link
             href="/how-it-works"
@@ -99,7 +99,7 @@ function HeroSection() {
             <CheckIcon /> No credit card to start
           </span>
           <span className="flex items-center gap-2">
-            <CheckIcon /> 100 free contacts
+            <CheckIcon /> 50 free contacts
           </span>
           <span className="flex items-center gap-2">
             <CheckIcon /> Cancel anytime
@@ -111,7 +111,7 @@ function HeroSection() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-20">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
           {[
-            { num: '100', label: 'Free leads to start' },
+            { num: '50', label: 'Free leads to start' },
             { num: '4', label: 'Ways to find buyers' },
             { num: '100%', label: 'Emails tested first' },
             { num: '0', label: 'Dead contacts you pay for' },
@@ -545,7 +545,7 @@ function PricingPreviewSection() {
           Start free. Pay only when it works.
         </h2>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-12">
-          You get 100 free leads the moment you sign up. No credit card needed.
+          You get 50 free leads the moment you sign up. No credit card needed.
           When you want more, pick a plan that fits. You are never locked in.
         </p>
 
@@ -618,7 +618,7 @@ function FAQPreviewSection() {
     },
     {
       q: 'How many free leads do I get?',
-      a: 'You get 100 free leads the moment you sign up. No credit card. No catch. You can run real searches and get real contacts. If you like what you see, you can buy more. If you do not, you walk away having lost nothing.',
+      a: 'You get 50 free leads the moment you sign up. No credit card. No catch. You can run real searches and get real contacts. If you like what you see, you can buy more. If you do not, you walk away having lost nothing.',
     },
     {
       q: 'What if I only need leads once?',
@@ -689,7 +689,7 @@ function FinalCTASection() {
             href="/sign-up"
             className="w-full sm:w-auto px-10 py-4 rounded-xl bg-primary hover:bg-primary/90 text-white text-lg font-semibold transition-all shadow-xl shadow-primary/30 hover:-translate-y-0.5"
           >
-            Get My 100 Free Leads
+            Get My 50 Free Leads
           </Link>
           <Link
             href="/pricing#pricing-table"
