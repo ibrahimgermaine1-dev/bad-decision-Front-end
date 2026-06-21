@@ -2521,6 +2521,19 @@ function OutreachMessages({ lead }: { lead: Lead }) {
     call: lead.outreach_call && lead.outreach_call !== 'ABSENT' ? lead.outreach_call : '',
   })
 
+  // CRITICAL: Sync messages state when the lead prop changes.
+  // After batch generation, the parent re-fetches leads and passes updated
+  // lead objects. Without this effect, the component would keep showing the
+  // old (empty) messages because useState only initializes once.
+  useEffect(() => {
+    setMessages({
+      subject: lead.outreach_email_subject && lead.outreach_email_subject !== 'ABSENT' ? lead.outreach_email_subject : '',
+      email: lead.outreach_email && lead.outreach_email !== 'ABSENT' ? lead.outreach_email : '',
+      social: lead.outreach_social && lead.outreach_social !== 'ABSENT' ? lead.outreach_social : '',
+      call: lead.outreach_call && lead.outreach_call !== 'ABSENT' ? lead.outreach_call : '',
+    })
+  }, [lead.outreach_email, lead.outreach_email_subject, lead.outreach_social, lead.outreach_call])
+
   const hasAny = Boolean(messages.email || messages.social || messages.call)
 
   const handleCopy = async (text: string, label: string) => {
