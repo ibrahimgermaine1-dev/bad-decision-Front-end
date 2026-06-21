@@ -26,6 +26,7 @@ export interface ExportableLead {
   review_count?: number | null
   category?: string | null
   // Outreach messages
+  outreach_email_subject?: string | null
   outreach_email?: string | null
   outreach_social?: string | null
   outreach_call?: string | null
@@ -87,7 +88,7 @@ export function exportLeadsToCsv(leads: ExportableLead[], engineType?: string): 
   if (engineType === 'social_intent') extraHeaders = ['Platform', 'Intent Text']
 
   // Always include outreach message columns
-  const outreachHeaders = ['Outreach Email', 'Outreach Social', 'Outreach Call']
+  const outreachHeaders = ['Email Subject', 'Outreach Email', 'Outreach Social', 'Outreach Call']
 
   const headers = [...baseHeaders, ...extraHeaders, ...outreachHeaders]
 
@@ -111,6 +112,7 @@ export function exportLeadsToCsv(leads: ExportableLead[], engineType?: string): 
     if (engineType === 'social_intent') extraRow = [cleanAbsent(lead.platform), cleanAbsent(lead.intent_text)]
 
     const outreachRow = [
+      cleanAbsent(lead.outreach_email_subject),
       cleanAbsent(lead.outreach_email),
       cleanAbsent(lead.outreach_social),
       cleanAbsent(lead.outreach_call),

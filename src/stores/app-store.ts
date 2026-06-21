@@ -54,6 +54,7 @@ export interface Lead {
   post_url?: string | null
   author_username?: string | null
   // Outreach messages
+  outreach_email_subject?: string | null
   outreach_email?: string | null
   outreach_social?: string | null
   outreach_call?: string | null

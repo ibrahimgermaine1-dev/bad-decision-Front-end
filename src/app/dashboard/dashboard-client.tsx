@@ -1049,7 +1049,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
       <button
         onClick={handleBatchOutreachClick}
         disabled={batchLoading}
-        className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[13px] font-semibold transition-colors disabled:opacity-50"
+        className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-secondary hover:bg-secondary/90 text-secondary-foreground text-[14px] font-bold transition-colors disabled:opacity-50 shadow-sm"
       >
         {batchLoading ? (
           <>
@@ -1078,46 +1078,46 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
     if (!showBatchModal) return null
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
         onClick={() => setShowBatchModal(false)}
       >
         <div
-          className="bg-card border border-border rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4"
+          className="bg-background border border-border rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
               <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-lg font-bold text-foreground">Write Messages for All</h3>
-              <p className="text-[13px] text-muted-foreground mt-1">
+              <p className="text-[14px] text-foreground/80 mt-1">
                 {leadsWithMessages} {leadsWithMessages === 1 ? 'lead already has' : 'leads already have'} outreach messages.
                 {leadsWithoutMessages > 0 && ` ${leadsWithoutMessages} ${leadsWithoutMessages === 1 ? 'lead does' : 'leads do'} not.`}
               </p>
             </div>
           </div>
 
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {leadsWithoutMessages > 0 && (
               <button
                 onClick={() => runBatchGeneration(false)}
                 disabled={batchLoading}
-                className="w-full text-left p-4 rounded-xl border border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 transition-colors disabled:opacity-50"
+                className="w-full text-left p-4 rounded-xl border-2 border-primary bg-primary/10 hover:bg-primary/20 hover:border-primary transition-colors disabled:opacity-50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-                    <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center shrink-0">
+                    <svg className="w-5 h-5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-bold text-foreground">
-                      Generate only for {leadsWithoutMessages} {leadsWithoutMessages === 1 ? 'lead' : 'leads'} without messages
+                    <p className="text-[15px] font-bold text-foreground">
+                      Generate for {leadsWithoutMessages} {leadsWithoutMessages === 1 ? 'lead' : 'leads'} without messages
                     </p>
-                    <p className="text-[12px] text-muted-foreground mt-0.5">
+                    <p className="text-[13px] text-foreground/70 mt-0.5">
                       Keeps the {leadsWithMessages} existing {leadsWithMessages === 1 ? 'message' : 'messages'} unchanged.
                     </p>
                   </div>
@@ -1128,19 +1128,19 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
             <button
               onClick={() => runBatchGeneration(true)}
               disabled={batchLoading}
-              className="w-full text-left p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/60 hover:border-primary/40 transition-colors disabled:opacity-50"
+              className="w-full text-left p-4 rounded-xl border-2 border-warning/40 bg-warning/10 hover:bg-warning/20 hover:border-warning transition-colors disabled:opacity-50"
             >
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                  <svg className="w-4 h-4 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="w-9 h-9 rounded-lg bg-warning flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[14px] font-bold text-foreground">
+                  <p className="text-[15px] font-bold text-foreground">
                     Regenerate for ALL {leads.length} {leads.length === 1 ? 'lead' : 'leads'}
                   </p>
-                  <p className="text-[12px] text-muted-foreground mt-0.5">
+                  <p className="text-[13px] text-foreground/70 mt-0.5">
                     Overrides the {leadsWithMessages} existing {leadsWithMessages === 1 ? 'message' : 'messages'} with fresh versions.
                   </p>
                 </div>
@@ -1151,7 +1151,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
           <button
             onClick={() => setShowBatchModal(false)}
             disabled={batchLoading}
-            className="w-full text-center text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors py-2"
+            className="w-full text-center text-[14px] font-bold text-foreground/60 hover:text-foreground transition-colors py-2.5 border-t border-border"
           >
             Cancel
           </button>
@@ -2468,6 +2468,7 @@ function OutreachMessages({ lead }: { lead: Lead }) {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
   const [messages, setMessages] = useState({
+    subject: lead.outreach_email_subject && lead.outreach_email_subject !== 'ABSENT' ? lead.outreach_email_subject : '',
     email: lead.outreach_email && lead.outreach_email !== 'ABSENT' ? lead.outreach_email : '',
     social: lead.outreach_social && lead.outreach_social !== 'ABSENT' ? lead.outreach_social : '',
     call: lead.outreach_call && lead.outreach_call !== 'ABSENT' ? lead.outreach_call : '',
@@ -2503,6 +2504,7 @@ function OutreachMessages({ lead }: { lead: Lead }) {
         setError(data.detail || data.error || 'Could not generate messages.')
       } else {
         setMessages({
+          subject: data.outreach_email_subject && data.outreach_email_subject !== 'ABSENT' ? data.outreach_email_subject : '',
           email: data.outreach_email !== 'ABSENT' ? data.outreach_email : '',
           social: data.outreach_social !== 'ABSENT' ? data.outreach_social : '',
           call: data.outreach_call !== 'ABSENT' ? data.outreach_call : '',
@@ -2581,9 +2583,12 @@ function OutreachMessages({ lead }: { lead: Lead }) {
               {messages.email && (
                 <MessageRow
                   icon="📧" label="Email" text={messages.email}
+                  subject={messages.subject}
                   tint="bg-azure-soft border-azure/30"
                   onCopy={() => handleCopy(messages.email, 'email')}
+                  onCopySubject={messages.subject ? () => handleCopy(messages.subject, 'subject') : undefined}
                   copied={copied === 'email'}
+                  copiedSubject={copied === 'subject'}
                 />
               )}
               {messages.social && (
@@ -2611,14 +2616,17 @@ function OutreachMessages({ lead }: { lead: Lead }) {
 }
 
 function MessageRow({
-  icon, label, text, tint, onCopy, copied,
+  icon, label, text, subject, tint, onCopy, onCopySubject, copied, copiedSubject,
 }: {
   icon: string
   label: string
   text: string
+  subject?: string
   tint: string
   onCopy: () => void
+  onCopySubject?: () => void
   copied: boolean
+  copiedSubject?: boolean
 }) {
   return (
     <div className={`rounded-lg border p-3 ${tint}`}>
@@ -2633,6 +2641,23 @@ function MessageRow({
           {copied ? '✓ Copied' : 'Copy'}
         </button>
       </div>
+      {subject && (
+        <div className="mb-2 pb-2 border-b border-border/50">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Subject Line</span>
+            {onCopySubject && (
+              <button
+                onClick={onCopySubject}
+                className="text-[10px] text-primary hover:text-primary/80 font-semibold transition-colors"
+              >
+                {copiedSubject ? '✓ Copied' : 'Copy Subject'}
+              </button>
+            )}
+          </div>
+          <p className="text-[13px] font-semibold text-foreground leading-snug">{subject}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{subject.length} characters</p>
+        </div>
+      )}
       <p className="text-[13px] text-foreground leading-relaxed whitespace-pre-wrap">{text}</p>
       <p className="text-[10px] text-muted-foreground mt-1">{text.length} characters</p>
     </div>
