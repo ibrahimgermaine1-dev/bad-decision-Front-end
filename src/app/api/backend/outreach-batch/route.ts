@@ -30,13 +30,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json().catch(() => ({}))
-    const taskId = body?.task_id
+    const reqBody = await req.json().catch(() => ({}))
+    const taskId = reqBody?.task_id
     if (!taskId || typeof taskId !== 'string') {
       return NextResponse.json({ error: 'task_id is required' }, { status: 400 })
     }
 
-    const forceRegenerate = Boolean(body?.force_regenerate)
+    const forceRegenerate = Boolean(reqBody?.force_regenerate)
 
     const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || ''
     const apiSecret = process.env.BACKEND_API_SECRET || ''
@@ -48,11 +48,26 @@ export async function POST(req: NextRequest) {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (apiSecret) headers['X-API-Secret'] = apiSecret
 
-    const res = await fetch(`${backendUrl}/api/outreach/generate-batch`, {
+    const body = JSON.stringify({ task_id: taskId, force_regenerate: forceRegenerate })
+
+    // Try the primary batch endpoint. If it returns 404, try the alternative path.
+    // This works around a routing issue on Render where /api/outreach/generate-batch
+    // returns 404 even though the route is defined.
+    let res = await fetch(`${backendUrl}/api/outreach/generate-batch`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ task_id: taskId, force_regenerate: forceRegenerate }),
+      body,
     })
+
+    // If 404, try the alternative path without the hyphen
+    if (res.status === 404) {
+      console.warn('[PROXY /outreach-batch] Primary path 404, trying alternative /api/outreach/batch')
+      res = await fetch(`${backendUrl}/api/outreach/batch`, {
+        method: 'POST',
+        headers,
+        body,
+      })
+    }
 
     // Get the response as text first, then try to parse as JSON.
     const responseText = await res.text()
