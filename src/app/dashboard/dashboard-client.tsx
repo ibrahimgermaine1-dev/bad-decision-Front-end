@@ -989,15 +989,22 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_id: taskId, force_regenerate: forceRegenerate }),
       })
-      const data = await res.json()
+      // Handle non-JSON responses gracefully
+      const responseText = await res.text()
+      let data: any
+      try {
+        data = JSON.parse(responseText)
+      } catch {
+        data = { error: responseText.slice(0, 200) || `Server error (${res.status})` }
+      }
       if (res.ok) {
         setBatchResult(data.message || `Done! Generated messages for ${data.generated} out of ${data.total_leads} leads.`)
         onLeadsUpdated?.()
       } else {
-        setBatchResult(data.detail || data.error || 'Failed to generate messages.')
+        setBatchResult(data.detail || data.error || `Failed to generate messages (${res.status}).`)
       }
     } catch (err: any) {
-      setBatchResult(err.message || 'Something went wrong.')
+      setBatchResult(err.message || 'Something went wrong. Check your connection and try again.')
     } finally {
       setBatchLoading(false)
     }
