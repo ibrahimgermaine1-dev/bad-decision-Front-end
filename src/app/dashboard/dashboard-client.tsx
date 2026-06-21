@@ -2177,6 +2177,8 @@ function SupportView() {
 function OutreachSettingsForm({ onSaved }: { onSaved?: () => void }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [companyName, setCompanyName] = useState('')
+  const [senderName, setSenderName] = useState('')
   const [userService, setUserService] = useState('')
   const [targetAudience, setTargetAudience] = useState('')
   const [style, setStyle] = useState<CopywritingStyle>('david_ogilvy')
@@ -2192,6 +2194,8 @@ function OutreachSettingsForm({ onSaved }: { onSaved?: () => void }) {
         if (data?.settings) {
           setUserService(data.settings.user_service || '')
           setTargetAudience(data.settings.target_audience || '')
+          setCompanyName(data.settings.company_name || '')
+          setSenderName(data.settings.sender_name || '')
           const s = data.settings.copywriting_style
           setStyle(
             COPYWRITING_STYLES.some(c => c.id === s) ? (s as CopywritingStyle) : 'david_ogilvy'
@@ -2220,6 +2224,8 @@ function OutreachSettingsForm({ onSaved }: { onSaved?: () => void }) {
           user_service: userService,
           target_audience: targetAudience,
           copywriting_style: style,
+          company_name: companyName,
+          sender_name: senderName,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -2249,6 +2255,40 @@ function OutreachSettingsForm({ onSaved }: { onSaved?: () => void }) {
 
   return (
     <div className="card-premium p-5 space-y-4">
+      {/* Company name + Your name — side by side */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-[12px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
+            Your Company Name
+          </label>
+          <input
+            type="text"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            placeholder="e.g. Acme Marketing"
+            className="w-full px-4 py-3 rounded-lg bg-input border border-border focus:border-primary text-foreground text-[14px] outline-none transition-colors"
+          />
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Used in sign-offs and subject lines.
+          </p>
+        </div>
+        <div>
+          <label className="block text-[12px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
+            Your Name
+          </label>
+          <input
+            type="text"
+            value={senderName}
+            onChange={(e) => setSenderName(e.target.value)}
+            placeholder="e.g. Alex Johnson"
+            className="w-full px-4 py-3 rounded-lg bg-input border border-border focus:border-primary text-foreground text-[14px] outline-none transition-colors"
+          />
+          <p className="text-[11px] text-muted-foreground mt-1">
+            How you want to be addressed in messages.
+          </p>
+        </div>
+      </div>
+
       {/* Service offering */}
       <div>
         <label className="block text-[12px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
