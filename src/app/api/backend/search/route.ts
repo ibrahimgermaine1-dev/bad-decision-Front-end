@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
 
     // VULN 6 FIX: Validate inputs strictly
-    const validEngines = ['ads_intent', 'smb_maps', 'web_absent', 'social_intent']
+    const validEngines = ['companies', 'ads_running', 'ecommerce', 'smb_maps', 'ads_intent', 'web_absent']
     if (!body.engine || !validEngines.includes(body.engine)) {
       return NextResponse.json({ error: 'Invalid engine type', detail: 'Invalid engine' }, { status: 400 })
     }

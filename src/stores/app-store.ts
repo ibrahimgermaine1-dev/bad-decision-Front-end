@@ -15,7 +15,7 @@ export type AppView =
   | 'dashboard-credit-vault' | 'dashboard-support'
 
 export type UserTier = 'free' | 'starter' | 'growth' | 'pro'
-export type EngineType = 'ads_intent' | 'smb_maps' | 'web_absent' | 'social_intent'
+export type EngineType = 'companies' | 'ads_running' | 'ecommerce' | 'smb_maps' | 'ads_intent' | 'web_absent'
 export type TaskStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'exhausted' | 'failed'
 
 export interface CreditBalance {

@@ -44,32 +44,25 @@ const COPYWRITING_STYLES: { id: CopywritingStyle; name: string; desc: string }[]
 
 const ENGINE_CARDS = [
   {
-    id: 'smb_maps' as EngineType,
-    title: 'Local Businesses',
-    desc: 'Find shops, clinics, and offices with real addresses.',
+    id: 'companies' as EngineType,
+    title: 'Companies',
+    desc: 'Find any type of business in any location. Service providers, manufacturers, clinics, agencies, contractors, retailers, and more.',
     creditCost: 1,
     icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z',
   },
   {
-    id: 'ads_intent' as EngineType,
-    title: 'Companies Running Ads',
-    desc: 'Find businesses spending money on ads right now.',
+    id: 'ads_running' as EngineType,
+    title: 'Businesses Running Ads',
+    desc: 'Find businesses actively spending money on ads. They have budgets and are ready to buy.',
     creditCost: 2,
     icon: 'M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z',
   },
   {
-    id: 'web_absent' as EngineType,
-    title: 'Businesses Without Websites',
-    desc: 'Find businesses that need a website built.',
+    id: 'ecommerce' as EngineType,
+    title: 'Ecommerce Brands',
+    desc: 'Find online stores and get deep data: what they sell, what tools they use, how to reach them. Returns thousands of leads per search.',
     creditCost: 2,
-    icon: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9',
-  },
-  {
-    id: 'social_intent' as EngineType,
-    title: 'People Asking For Help',
-    desc: 'Find people who want to buy right now.',
-    creditCost: 2,
-    icon: 'M13 10V3L4 14h7v7l9-11h-7z',
+    icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z',
   },
 ]
 
@@ -1675,7 +1668,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
   // ============================================================
   // SOCIAL_INTENT — Social Radar
   // ============================================================
-  if (engineType === 'social_intent') {
+  if ((engineType as string) === 'social_intent') {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1786,25 +1779,34 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
 // COLLECTIONS VIEW — grouped by engine type
 // ============================================================
 const ENGINE_META: Record<EngineType, { name: string; iconPath: string }> = {
+  companies: {
+    name: 'Companies',
+    iconPath: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z',
+  },
+  ads_running: {
+    name: 'Businesses Running Ads',
+    iconPath: 'M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z',
+  },
+  ecommerce: {
+    name: 'Ecommerce Brands',
+    iconPath: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z',
+  },
+  // Backward compatibility (old engine names)
   smb_maps: {
-    name: 'Local Businesses',
+    name: 'Companies',
     iconPath: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z',
   },
   ads_intent: {
-    name: 'Ads Intelligence',
+    name: 'Businesses Running Ads',
     iconPath: 'M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z',
   },
   web_absent: {
-    name: 'Web-Absent',
-    iconPath: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9',
-  },
-  social_intent: {
-    name: 'Social Radar',
-    iconPath: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
+    name: 'Ecommerce Brands',
+    iconPath: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z',
   },
 }
 
-const ENGINE_ORDER: EngineType[] = ['smb_maps', 'ads_intent', 'web_absent', 'social_intent']
+const ENGINE_ORDER: EngineType[] = ['companies', 'ads_running', 'ecommerce']
 
 function CollectionsView({ collections }: { collections: SmartCollection[] }) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -1817,10 +1819,12 @@ function CollectionsView({ collections }: { collections: SmartCollection[] }) {
 
   const grouped = useMemo(() => {
     const groups: Record<EngineType, SmartCollection[]> = {
+      companies: [],
+      ads_running: [],
+      ecommerce: [],
       smb_maps: [],
       ads_intent: [],
       web_absent: [],
-      social_intent: [],
     }
     collections.forEach(col => {
       if (col && groups[col.task_type]) {

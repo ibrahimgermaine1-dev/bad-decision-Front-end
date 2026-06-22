@@ -58,7 +58,7 @@ const FAQ_SECTIONS: FAQSection[] = [
           'Yes. You can search in any of 195 countries. You can filter by continent, country, and state or region. If you want roofers in Texas, you can find them. If you want bakeries in Lagos, you can find them. The world is yours.',
       },
       {
-        question: 'What are the 4 search engines?',
+        question: 'What are the 3 search engines?',
         answer:
           'We have four ways to find leads. Each one finds a different kind of buyer. Local Businesses finds shops and offices near a place. Companies Running Ads finds businesses that spend money on ads right now. Businesses Without Websites finds shops that need a website built. People Asking For Help finds real people posting online about a problem you can solve. Free accounts get the first one. Paid accounts get all four.',
       },

@@ -112,7 +112,7 @@ function HeroSection() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
           {[
             { num: '50', label: 'Free leads to start' },
-            { num: '4', label: 'Ways to find buyers' },
+            { num: '3', label: 'Ways to find buyers' },
             { num: '100%', label: 'Emails tested first' },
             { num: '0', label: 'Dead contacts you pay for' },
           ].map((stat, i) => (
@@ -342,24 +342,19 @@ function HowItWorksSection() {
 function EnginesSection() {
   const engines = [
     {
-      title: 'Companies Running Ads',
-      desc: 'Find businesses that are already spending money on ads. If they pay for ads, they have a budget. If they have a budget, they can buy what you sell.',
-      icon: 'M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z',
-    },
-    {
-      title: 'Local Businesses',
-      desc: 'Find shops, clinics, salons, gyms, and offices near you or anywhere in the world. These are businesses with real addresses and real owners who pick up the phone.',
+      title: 'Companies',
+      desc: 'Find any type of business in any location. Service providers, manufacturers, clinics, agencies, contractors, retailers, and more. We scan maps, directories, and public records to find real businesses with verified contact information.',
       icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z',
     },
     {
-      title: 'Businesses Without Websites',
-      desc: 'Find businesses that do not have a website yet. If you build websites, design logos, or sell marketing services, these are your hottest prospects. They need you.',
-      icon: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9',
+      title: 'Businesses Running Ads',
+      desc: 'Find businesses actively spending money on ads across Facebook, Google, TikTok, and other platforms. They have budgets and are ready to buy.',
+      icon: 'M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z',
     },
     {
-      title: 'People Asking For Help',
-      desc: 'Find people who are posting online asking for help right now. They are raising their hand saying they need a solution. If you have that solution, this is a gift.',
-      icon: 'M13 10V3L4 14h7v7l9-11h-7z',
+      title: 'Ecommerce Brands',
+      desc: 'Find online stores and get deep data that no one else gives you. See what they sell, what tools they use, how much they charge, and how to reach them. Returns thousands of leads per search.',
+      icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z',
     },
   ]
 
@@ -368,7 +363,7 @@ function EnginesSection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
           <div className="inline-block px-4 py-1.5 rounded-full bg-muted border border-border mb-6">
-            <span className="text-[12px] text-primary font-semibold uppercase tracking-wider">Four Ways To Find Buyers</span>
+            <span className="text-[12px] text-primary font-semibold uppercase tracking-wider">Three Ways To Find Buyers</span>
           </div>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-card-foreground mb-4">
             Pick your target. We do the rest.
@@ -398,7 +393,7 @@ function EnginesSection() {
 
         <div className="mt-10 text-center">
           <p className="text-[15px] text-card-foreground/70">
-            Free accounts get two of these. Paid accounts get all four.
+            Free accounts get one of these. Paid accounts get all three.
           </p>
         </div>
       </div>
