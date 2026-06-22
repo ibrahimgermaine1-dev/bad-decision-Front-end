@@ -24,7 +24,7 @@ import { LocationSelector } from '@/components/location-selector'
 import { exportLeadsToCsv, downloadCsv } from '@/lib/csv-shield'
 import { ErrorBoundary } from '@/components/error-boundary'
 
-type DashView = 'search' | 'collections' | 'credits' | 'support' | 'messages' | 'settings'
+type DashView = 'search' | 'collections' | 'credits' | 'billing' | 'support' | 'messages' | 'settings'
 
 // ============================================================
 // OUTREACH COPYWRITING STYLES — mirrors backend enum
@@ -548,6 +548,12 @@ export function DashboardShell() {
               onClick={() => { setActiveView('credits'); setSidebarOpen(false) }}
             />
             <NavItem
+              icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              label="Billing"
+              active={activeView === 'billing'}
+              onClick={() => { setActiveView('billing'); setSidebarOpen(false) }}
+            />
+            <NavItem
               icon="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
               label="Messages"
               active={activeView === 'messages'}
@@ -641,6 +647,9 @@ export function DashboardShell() {
               paymentError={paymentError}
               userCountry={userCountry}
             />
+          )}
+          {activeView === 'billing' && (
+            <BillingView tier={tier} onTierChange={() => loadProfile()} />
           )}
           {activeView === 'messages' && (
             <MessagesView />
@@ -2178,6 +2187,222 @@ function CreditsView({
           </a>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ============================================================
+// BILLING VIEW — subscription management + transaction history
+// ============================================================
+function BillingView({ tier, onTierChange }: { tier: string; onTierChange: () => void }) {
+  const [subscription, setSubscription] = useState<any>(null)
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [canceling, setCanceling] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const [subRes, histRes] = await Promise.all([
+        fetch('/api/backend/subscriptions/status'),
+        fetch('/api/backend/billing/history'),
+      ])
+      if (subRes.ok) {
+        const subData = await subRes.json()
+        setSubscription(subData.subscription)
+      }
+      if (histRes.ok) {
+        const histData = await histRes.json()
+        setTransactions(histData.transactions || [])
+      }
+    } catch (err: any) {
+      setError('Could not load billing information.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchData() }, [fetchData])
+
+  const handleCancel = async () => {
+    setCanceling(true)
+    setError('')
+    try {
+      const res = await fetch('/api/backend/subscriptions/cancel', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        setSuccessMsg(data.message || 'Subscription canceled.')
+        setShowCancelModal(false)
+        setSubscription(null)
+        onTierChange()
+      } else {
+        setError(data.error || data.detail || 'Could not cancel subscription.')
+      }
+    } catch {
+      setError('Network error. Please try again.')
+    } finally {
+      setCanceling(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="card-premium p-8 flex flex-col items-center justify-center gap-3">
+        <svg className="animate-spin w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <p className="text-[14px] text-muted-foreground">Loading your billing information...</p>
+      </div>
+    )
+  }
+
+  const renewalDate = subscription?.current_period_end
+    ? new Date(subscription.current_period_end).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : null
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">Billing</h1>
+        <p className="text-[14px] text-muted-foreground">Manage your subscription and view payment history.</p>
+      </div>
+
+      {error && (
+        <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-4">
+          <p className="text-[14px] text-destructive">{error}</p>
+        </div>
+      )}
+      {successMsg && (
+        <div className="rounded-xl bg-success/10 border border-success/20 p-4">
+          <p className="text-[14px] text-success">{successMsg}</p>
+        </div>
+      )}
+
+      {/* Current Plan Card */}
+      <div className="card-premium p-5 sm:p-6">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wide mb-1">Current Plan</div>
+            <div className="flex items-baseline gap-3">
+              <span className="text-2xl font-bold text-foreground capitalize">{tier}</span>
+              {subscription?.status === 'active' && (
+                <span className="px-2 py-0.5 rounded-md bg-success/15 text-success text-[11px] font-bold uppercase">Active</span>
+              )}
+              {subscription?.status === 'trialing' && (
+                <span className="px-2 py-0.5 rounded-md bg-warning/15 text-warning text-[11px] font-bold uppercase">Pending</span>
+              )}
+              {subscription?.status === 'canceled' && (
+                <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground text-[11px] font-bold uppercase">Canceled</span>
+              )}
+              {subscription?.status === 'past_due' && (
+                <span className="px-2 py-0.5 rounded-md bg-destructive/15 text-destructive text-[11px] font-bold uppercase">Past Due</span>
+              )}
+            </div>
+            {renewalDate && subscription?.status === 'active' && (
+              <p className="text-[13px] text-muted-foreground mt-1">Next billing date: {renewalDate}</p>
+            )}
+            {tier === 'free' && (
+              <p className="text-[13px] text-muted-foreground mt-1">50 free credits renew every 30 days</p>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {tier !== 'free' && subscription?.status === 'active' && (
+              <button
+                onClick={() => setShowCancelModal(true)}
+                className="px-4 py-2 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 text-[13px] font-medium transition-all active:scale-[0.98]"
+              >
+                Cancel Subscription
+              </button>
+            )}
+            <a
+              href="/pricing"
+              className="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-[13px] font-semibold transition-all active:scale-[0.98]"
+            >
+              {tier === 'free' ? 'Upgrade Plan' : 'View Plans'}
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Transaction History */}
+      <div>
+        <h2 className="text-lg font-bold text-foreground mb-3">Transaction History</h2>
+        {transactions.length === 0 ? (
+          <div className="card-premium p-8 text-center">
+            <p className="text-[14px] text-muted-foreground">No transactions yet. Your payment history will appear here.</p>
+          </div>
+        ) : (
+          <div className="card-premium overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left px-4 py-3 text-[12px] font-semibold text-muted-foreground uppercase tracking-wide">Date</th>
+                    <th className="text-left px-4 py-3 text-[12px] font-semibold text-muted-foreground uppercase tracking-wide">Description</th>
+                    <th className="text-right px-4 py-3 text-[12px] font-semibold text-muted-foreground uppercase tracking-wide">Credits</th>
+                    <th className="text-right px-4 py-3 text-[12px] font-semibold text-muted-foreground uppercase tracking-wide">Type</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map((tx, i) => (
+                    <tr key={tx.id || i} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3 text-[13px] text-muted-foreground whitespace-nowrap">
+                        {tx.created_at ? new Date(tx.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-foreground">{tx.description || '—'}</td>
+                      <td className={`px-4 py-3 text-[13px] font-semibold text-right tabular-nums ${tx.amount > 0 ? 'text-success' : tx.amount < 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        {tx.amount > 0 ? '+' : ''}{tx.amount}
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-muted-foreground text-right capitalize whitespace-nowrap">
+                        {tx.transaction_type?.replace(/_/g, ' ') || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Cancel Subscription Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center px-4" onClick={() => !canceling && setShowCancelModal(false)}>
+          <div className="card-premium p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-foreground mb-2">Cancel subscription?</h3>
+            <p className="text-[14px] text-muted-foreground mb-4">
+              Your subscription will remain active until the end of your current billing period. After that, your account will revert to the Free plan. You will keep your remaining credits until they expire.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                disabled={canceling}
+                className="px-4 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground text-[13px] font-medium transition-all active:scale-[0.98]"
+              >
+                Keep Subscription
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={canceling}
+                className="px-4 py-2 rounded-lg bg-destructive hover:bg-destructive/90 text-white text-[13px] font-semibold transition-all active:scale-[0.98] flex items-center gap-2 disabled:opacity-50"
+              >
+                {canceling && (
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                )}
+                Yes, Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
