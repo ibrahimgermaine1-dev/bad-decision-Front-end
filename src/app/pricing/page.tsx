@@ -30,7 +30,7 @@ export default function PricingPage() {
   const { isSignedIn, userId } = useAuth()
   const { user } = useUser()
   const { userCountry, tier, setTier, setCreditBalance } = useAppStore()
-  const [paymentProcessing, setPaymentProcessing] = useState(false)
+  const [processingTier, setProcessingTier] = useState<TierId | null>(null)
   const [paymentError, setPaymentError] = useState('')
 
   const router = useRouter()
@@ -45,16 +45,14 @@ export default function PricingPage() {
     }
 
     if (!isSignedIn) {
-      // Redirect to sign-in, but come BACK to the pricing page after
       router.push('/sign-in?redirect_url=/pricing')
       return
     }
 
-    setPaymentProcessing(true)
+    setProcessingTier(tierId)
     setPaymentError('')
 
     try {
-      // Call backend to initialize a Paystack subscription
       const res = await fetch('/api/backend/subscriptions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -65,20 +63,19 @@ export default function PricingPage() {
 
       if (!res.ok) {
         setPaymentError(data.detail || data.error || 'Could not start subscription. Please try again.')
-        setPaymentProcessing(false)
+        setProcessingTier(null)
         return
       }
 
-      // Redirect to Paystack authorization URL
       if (data.authorization_url) {
         window.location.href = data.authorization_url
       } else {
         setPaymentError('No authorization URL returned. Please try again.')
-        setPaymentProcessing(false)
+        setProcessingTier(null)
       }
     } catch (err: any) {
       setPaymentError(err.message || 'Payment failed. Please try again.')
-      setPaymentProcessing(false)
+      setProcessingTier(null)
     }
   }
 
@@ -137,15 +134,18 @@ export default function PricingPage() {
               // - Lower or equal tier that's not the current plan: "Included" (disabled)
               // - Higher tier: "Upgrade to <Name>" (clickable)
               // - Not signed in: original labels ("Start Free" / "Get <Name>")
+              const isThisTierProcessing = processingTier === plan.id
+              const anyTierProcessing = processingTier !== null
+
               let buttonLabel: string
               if (isCurrent) {
                 buttonLabel = 'Current Plan'
               } else if (isAtOrBelow) {
                 buttonLabel = 'Included'
+              } else if (isThisTierProcessing) {
+                buttonLabel = 'Please wait...'
               } else if (isUpgrade) {
                 buttonLabel = `Upgrade to ${plan.name}`
-              } else if (paymentProcessing) {
-                buttonLabel = 'Please wait...'
               } else {
                 buttonLabel = plan.priceUSD === 0 ? 'Start Free' : `Get ${plan.name}`
               }
@@ -204,11 +204,11 @@ export default function PricingPage() {
                         : isPopular
                         ? 'bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20'
                         : 'bg-card hover:bg-card/80 text-card-foreground border border-border hover:border-primary/50'
-                    } ${paymentProcessing && !isDisabled ? 'opacity-75 cursor-wait' : ''} active:scale-[0.98]`}
-                    disabled={isDisabled || paymentProcessing}
+                    } ${isThisTierProcessing ? 'opacity-75 cursor-wait' : ''} active:scale-[0.98]`}
+                    disabled={isDisabled || anyTierProcessing}
                     onClick={() => handlePurchase(plan.id)}
                   >
-                    {paymentProcessing && !isDisabled && (
+                    {isThisTierProcessing && (
                       <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>

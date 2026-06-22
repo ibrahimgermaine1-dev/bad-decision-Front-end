@@ -585,7 +585,7 @@ export function DashboardShell() {
             <button
               onClick={handleSignOut}
               disabled={signingOut}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-destructive hover:bg-destructive/10 text-[12px] font-medium transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-wait"
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-destructive/80 hover:text-destructive hover:bg-destructive/10 text-[12px] font-medium transition-all duration-200 active:scale-[0.97] disabled:opacity-50 disabled:cursor-wait disabled:hover:bg-transparent"
             >
               {signingOut ? (
                 <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -593,7 +593,7 @@ export function DashboardShell() {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                 </svg>
               ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
               )}
