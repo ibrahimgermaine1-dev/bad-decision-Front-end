@@ -13,7 +13,7 @@
  * - Payment via Paystack inline popup
  */
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useAuth, useUser, useClerk } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Script from 'next/script'
@@ -55,7 +55,7 @@ const COPYWRITING_STYLES: { id: CopywritingStyle; name: string; desc: string }[]
 const ENGINE_CARDS = [
   {
     id: 'companies' as EngineType,
-    title: 'Companies',
+    title: 'Companies And Professionals',
     desc: 'Find any type of business in any location. Service providers, manufacturers, clinics, agencies, contractors, retailers, and more.',
     creditCost: 1,
     icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z',
@@ -1581,7 +1581,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
   }
 
   // ---------- Shared LeadCard component ----------
-  const LeadCard = ({ lead, engine }: { lead: Lead, engine: EngineType | null }) => (
+  const LeadCard = ({ lead, engine, onLeadsUpdated }: { lead: Lead, engine: EngineType | null, onLeadsUpdated?: () => void }) => (
     <div className="card-premium p-5 space-y-2.5">
       {/* Row 1: company name + badges */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -1614,7 +1614,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
       {renderSocialLinks(lead)}
 
       {/* Row 6: outreach messages */}
-      <OutreachMessages lead={lead} />
+      <OutreachMessages lead={lead} onLeadsUpdated={onLeadsUpdated} />
     </div>
   )
 
@@ -1645,7 +1645,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
         ])}
         <div className="space-y-3">
           {sortedLeads.map((lead, i) => (
-            <LeadCard key={i} lead={lead} engine={engineType} />
+            <LeadCard key={i} lead={lead} engine={engineType} onLeadsUpdated={onLeadsUpdated} />
           ))}
         </div>
       </div>
@@ -1679,7 +1679,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
         ])}
         <div className="space-y-3">
           {sortedLeads.map((lead, i) => (
-            <LeadCard key={i} lead={lead} engine={engineType} />
+            <LeadCard key={i} lead={lead} engine={engineType} onLeadsUpdated={onLeadsUpdated} />
           ))}
         </div>
       </div>
@@ -1713,7 +1713,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
         ])}
         <div className="space-y-3">
           {sortedLeads.map((lead, i) => (
-            <LeadCard key={i} lead={lead} engine={engineType} />
+            <LeadCard key={i} lead={lead} engine={engineType} onLeadsUpdated={onLeadsUpdated} />
           ))}
         </div>
       </div>
@@ -1746,7 +1746,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
         ])}
         <div className="space-y-3">
           {sortedLeads.map((lead, i) => (
-            <LeadCard key={i} lead={lead} engine={engineType} />
+            <LeadCard key={i} lead={lead} engine={engineType} onLeadsUpdated={onLeadsUpdated} />
           ))}
         </div>
       </div>
@@ -1774,7 +1774,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
       </div>
       <div className="space-y-3">
         {sortedLeads.map((lead, i) => (
-          <LeadCard key={i} lead={lead} engine={engineType} />
+          <LeadCard key={i} lead={lead} engine={engineType} onLeadsUpdated={onLeadsUpdated} />
         ))}
       </div>
     </div>
@@ -1786,7 +1786,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
 // ============================================================
 const ENGINE_META: Record<EngineType, { name: string; iconPath: string }> = {
   companies: {
-    name: 'Companies',
+    name: 'Companies And Professionals',
     iconPath: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z',
   },
   ads_running: {
@@ -1799,7 +1799,7 @@ const ENGINE_META: Record<EngineType, { name: string; iconPath: string }> = {
   },
   // Backward compatibility (old engine names)
   smb_maps: {
-    name: 'Companies',
+    name: 'Companies And Professionals',
     iconPath: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z',
   },
   ads_intent: {
@@ -2797,32 +2797,33 @@ function SettingsView({ tier }: { tier: string }) {
 // ============================================================
 // OUTREACH MESSAGES — on-demand generation inside each lead card
 // ============================================================
-function OutreachMessages({ lead }: { lead: Lead }) {
+function OutreachMessages({ lead, onLeadsUpdated }: { lead: Lead, onLeadsUpdated?: () => void }) {
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
-  const [messages, setMessages] = useState({
+
+  // Derive messages directly from the lead prop — no local state.
+  // This eliminates the entire class of "messages appear then disappear" bugs
+  // caused by useEffect/useState sync issues after batch re-fetch.
+  // The parent owns the lead data; we just render it.
+  const messages = {
     subject: lead.outreach_email_subject && lead.outreach_email_subject !== 'ABSENT' ? lead.outreach_email_subject : '',
     email: lead.outreach_email && lead.outreach_email !== 'ABSENT' ? lead.outreach_email : '',
     social: lead.outreach_social && lead.outreach_social !== 'ABSENT' ? lead.outreach_social : '',
     call: lead.outreach_call && lead.outreach_call !== 'ABSENT' ? lead.outreach_call : '',
-  })
+  }
 
-  // CRITICAL: Sync messages state when the lead prop changes.
-  // After batch generation, the parent re-fetches leads and passes updated
-  // lead objects. Without this effect, the component would keep showing the
-  // old (empty) messages because useState only initializes once.
-  useEffect(() => {
-    setMessages({
-      subject: lead.outreach_email_subject && lead.outreach_email_subject !== 'ABSENT' ? lead.outreach_email_subject : '',
-      email: lead.outreach_email && lead.outreach_email !== 'ABSENT' ? lead.outreach_email : '',
-      social: lead.outreach_social && lead.outreach_social !== 'ABSENT' ? lead.outreach_social : '',
-      call: lead.outreach_call && lead.outreach_call !== 'ABSENT' ? lead.outreach_call : '',
-    })
-  }, [lead.outreach_email, lead.outreach_email_subject, lead.outreach_social, lead.outreach_call])
-
+  // Auto-expand when messages first appear (after batch generation or single generate).
+  // Runs only when hasAny transitions from false → true.
   const hasAny = Boolean(messages.email || messages.social || messages.call)
+  const prevHadAny = useRef(hasAny)
+  useEffect(() => {
+    if (hasAny && !prevHadAny.current) {
+      setExpanded(true)
+    }
+    prevHadAny.current = hasAny
+  }, [hasAny])
 
   const handleCopy = async (text: string, label: string) => {
     try {
@@ -2858,12 +2859,9 @@ function OutreachMessages({ lead }: { lead: Lead }) {
       if (!res.ok) {
         setError(data.detail || data.error || `Could not generate messages (${res.status}).`)
       } else {
-        setMessages({
-          subject: data.outreach_email_subject && data.outreach_email_subject !== 'ABSENT' ? data.outreach_email_subject : '',
-          email: data.outreach_email !== 'ABSENT' ? data.outreach_email : '',
-          social: data.outreach_social !== 'ABSENT' ? data.outreach_social : '',
-          call: data.outreach_call !== 'ABSENT' ? data.outreach_call : '',
-        })
+        // Tell the parent to re-fetch leads so this component receives the
+        // updated lead prop (with outreach_email populated).
+        onLeadsUpdated?.()
         setExpanded(true)
       }
     } catch (err: any) {

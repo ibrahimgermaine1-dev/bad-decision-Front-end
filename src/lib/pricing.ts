@@ -45,7 +45,7 @@ export const TIERS: PricingTier[] = [
     engines: ['companies'],
     features: [
       '50 credits to get started',
-      'Companies search',
+      'Companies And Professionals search',
       '2 searches per day',
       '1 credit per lead',
       'Basic email check',
@@ -66,7 +66,7 @@ export const TIERS: PricingTier[] = [
     engines: ['companies'],
     features: [
       '500 credits per month',
-      'Companies search',
+      'Companies And Professionals search',
       '15 searches per day',
       '2 credits per lead',
       'Verified email addresses',
