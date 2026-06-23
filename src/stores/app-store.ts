@@ -58,6 +58,29 @@ export interface Lead {
   outreach_email?: string | null
   outreach_social?: string | null
   outreach_call?: string | null
+  // Messaging platform detection
+  is_whatsapp?: boolean
+  is_telegram?: boolean
+  messaging_checked?: boolean
+  // Ecommerce fields
+  ecommerce_platform?: string | null
+  product_count?: number | null
+  product_categories?: string[] | null
+  average_price?: string | null
+  price_range?: string | null
+  store_currency?: string | null
+  estimated_revenue?: string | null
+  tech_stack?: string[] | null
+  uses_email_marketing?: boolean | null
+  uses_ad_tracking?: boolean | null
+  uses_subscriptions?: boolean | null
+  store_age_days?: number | null
+  social_media_links?: string[] | null
+  // Ads fields
+  ad_platforms?: string[] | null
+  ad_start_date?: string | null
+  ad_creative_url?: string | null
+  estimated_monthly_ad_spend?: string | null
 }
 
 export interface SmartCollection {
