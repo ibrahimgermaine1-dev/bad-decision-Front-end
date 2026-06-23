@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import { useAppStore, type EngineType, type Lead, type SmartCollection, type UserTier } from '@/stores/app-store'
 import { startSearch, pollUntilComplete, fetchCreditBalance, verifyPayment, fetchCollections } from '@/lib/api'
-import { CREDIT_ADDONS, type TierId, formatAddonPrice, isEngineAvailable } from '@/lib/pricing'
+import { CREDIT_ADDONS, type TierId, formatAddonPrice, isEngineAvailable, getCreditsPerLead } from '@/lib/pricing'
 import { LocationSelector } from '@/components/location-selector'
 import { exportLeadsToCsv, downloadCsv } from '@/lib/csv-shield'
 import { ErrorBoundary } from '@/components/error-boundary'
@@ -784,7 +784,7 @@ function SearchView({
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <span className="px-2.5 py-1 rounded-md bg-muted text-[12px] font-bold text-primary">
-                  {activeEngine?.creditCost} credits
+                  {getCreditsPerLead(tier as TierId)} credits
                 </span>
                 <button
                   onClick={() => setSelectedEngine(null)}
@@ -834,7 +834,7 @@ function SearchView({
                         <span className={`font-semibold text-[14px] ${locked ? 'text-muted-foreground' : 'text-foreground'}`}>{engine.title}</span>
                         {!locked && (
                           <span className="px-2 py-0.5 rounded-md bg-muted text-[11px] font-bold text-primary flex-shrink-0">
-                            {engine.creditCost} credits
+                            {getCreditsPerLead(tier as TierId)} credits
                           </span>
                         )}
                       </div>
@@ -913,7 +913,7 @@ function SearchView({
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
-                Search · {activeEngine?.creditCost} credits
+                Search · {getCreditsPerLead(tier as TierId)} credits
                 <span className="text-[12px] opacity-70">(You have {creditBalance})</span>
               </span>
             )}
@@ -1806,7 +1806,7 @@ const ENGINE_META: Record<EngineType, { name: string; iconPath: string }> = {
   },
 }
 
-const ENGINE_ORDER: EngineType[] = ['companies', 'ads_running', 'ecommerce']
+const ENGINE_ORDER: EngineType[] = ['companies', 'ads_running', 'ecommerce', 'smb_maps', 'ads_intent', 'web_absent']
 
 function CollectionsView({ collections }: { collections: SmartCollection[] }) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
