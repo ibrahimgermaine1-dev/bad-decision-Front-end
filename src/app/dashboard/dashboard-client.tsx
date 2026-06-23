@@ -224,12 +224,22 @@ export function DashboardShell() {
     setCurrentStep('Starting search...')
 
     try {
-      // Reserve credits for this search. We send the user's full balance
-      // (or a reasonable max). The backend reserves it all, then commits
-      // only what's actually spent (leads_found × credits_per_lead) and
-      // refunds the rest. This way the search works as long as the user
-      // has at least 1 credit.
-      const creditsToReserve = Math.min(Math.max(creditBalance.credits_balance, 1), 100)
+      // Reserve enough credits to hit the tier's max lead target.
+      // The backend reserves it all, then commits only what's actually spent
+      // (leads_found × credits_per_lead) and refunds the rest.
+      //
+      // Tier max leads: Free=25, Starter=50, Growth=200, Pro=400
+      // Credits per lead: Free=1, Starter=2, Growth=2, Pro=3
+      // So Pro needs up to 400×3=1200 credits reserved to get 400 leads.
+      //
+      // We cap at the user's actual balance so we never reserve more than they have.
+      const creditsPerLead = getCreditsPerLead(tier as TierId)
+      const tierMaxLeads: Record<string, number> = {
+        free: 25, starter: 50, growth: 200, pro: 400,
+      }
+      const maxLeads = tierMaxLeads[tier] || 25
+      const creditsNeeded = maxLeads * creditsPerLead
+      const creditsToReserve = Math.min(Math.max(creditBalance.credits_balance, 1), creditsNeeded)
 
       const searchResult = await startSearch(
         selectedEngine,
@@ -1149,7 +1159,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
     <div className="flex items-center gap-2 flex-wrap">
       <button
         onClick={handleExport}
-        className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-card border border-border hover:border-primary/50 text-card-foreground text-[13px] font-semibold transition-colors"
+        className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-card border border-border hover:border-primary/50 hover:bg-muted/30 text-card-foreground text-[13px] font-semibold transition-all active:scale-95"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -1187,7 +1197,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
       <button
         onClick={handleBatchOutreachClick}
         disabled={batchLoading}
-        className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-secondary hover:bg-secondary/90 text-secondary-foreground text-[14px] font-bold transition-colors disabled:opacity-50 shadow-sm"
+        className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-secondary hover:bg-secondary/90 text-secondary-foreground text-[14px] font-bold transition-all hover:shadow-md active:scale-95 disabled:opacity-50 disabled:hover:shadow-none shadow-sm"
       >
         {batchLoading ? (
           <>
@@ -1306,10 +1316,10 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
   const renderSortBtn = (value: string, label: string) => (
     <button
       onClick={() => setSortBy(sortBy === value ? 'default' : value)}
-      className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors border ${
+      className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all border active:scale-95 ${
         sortBy === value
-          ? 'bg-primary text-white border-primary'
-          : 'bg-card text-card-foreground border-border hover:border-primary/50'
+          ? 'bg-primary text-white border-primary shadow-sm'
+          : 'bg-card text-card-foreground border-border hover:border-primary/50 hover:bg-muted/50'
       }`}
     >
       {label}
@@ -1598,13 +1608,19 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
 
     if (items.length === 0) return null
     return (
-      <div className="flex items-center gap-x-4 gap-y-1.5 flex-wrap text-[12px] text-muted-foreground">
-        {items.map((item, i) => (
-          <span key={i} className="inline-flex items-center gap-1">
-            <span className="font-semibold uppercase tracking-wide text-[10px] text-muted-foreground/80">{item.label}</span>
-            <span className="text-foreground font-medium">{item.value}</span>
-          </span>
-        ))}
+      <div className="rounded-lg bg-muted/40 border border-border/50 p-3 mb-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2">
+          {items.map((item, i) => (
+            <div key={i} className="flex flex-col gap-0.5 min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/70 truncate">
+                {item.label}
+              </span>
+              <span className="text-[13px] text-foreground font-medium truncate">
+                {item.value}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -1642,42 +1658,49 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
   }
 
   // ---------- Shared LeadCard component ----------
-  const LeadCard = ({ lead, engine, onLeadsUpdated }: { lead: Lead, engine: EngineType | null, onLeadsUpdated?: () => void }) => (
-    <div className="card-premium p-5 space-y-2.5">
-      {/* Row 1: company name + badges */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <h3 className="font-bold text-[16px] text-foreground truncate flex-1 min-w-0">
-          {lead.company_name || lead.author_username || 'Unknown'}
-        </h3>
-        <div className="flex items-center gap-2 shrink-0">
-          {lead.validation_gates_passed && lead.validation_gates_passed >= 2 && <VerifiedBadge />}
-          <RatingDisplay rating={lead.rating} reviewCount={lead.review_count} />
-          {engine === 'ads_intent' || engine === 'ads_running'
-            ? renderAdPlatformBadge(lead.ad_platform)
-            : engine === 'ecommerce' || engine === 'web_absent'
-            ? renderEcommercePlatformBadge(lead.ecommerce_platform)
-            : (engine as string) === 'social_intent'
-            ? renderSocialPlatformBadge(lead.platform)
-            : null}
+  // ---------- Shared LeadCard component — clean premium design ----------
+  const LeadCard = ({ lead, engine, onLeadsUpdated }: { lead: Lead, engine: EngineType | null, onLeadsUpdated?: () => void }) => {
+    const engineBadge = engine === 'ads_intent' || engine === 'ads_running'
+      ? renderAdPlatformBadge(lead.ad_platform)
+      : engine === 'ecommerce' || engine === 'web_absent'
+      ? renderEcommercePlatformBadge(lead.ecommerce_platform)
+      : (engine as string) === 'social_intent'
+      ? renderSocialPlatformBadge(lead.platform)
+      : null
+
+    return (
+      <div className="card-premium p-5 sm:p-6 transition-all hover:shadow-lg hover:border-primary/30">
+        {/* === HEADER: company name + badges === */}
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-[17px] text-foreground leading-tight truncate">
+              {lead.company_name || lead.author_username || 'Unknown'}
+            </h3>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              {lead.validation_gates_passed && lead.validation_gates_passed >= 2 && <VerifiedBadge />}
+              <RatingDisplay rating={lead.rating} reviewCount={lead.review_count} />
+              {engineBadge}
+            </div>
+          </div>
         </div>
+
+        {/* === CONTACT SECTION: website + email + phone === */}
+        <div className="space-y-2 mb-3">
+          <WebsiteLink url={lead.website_url || ''} />
+          <ContactRow lead={lead} />
+        </div>
+
+        {/* === DETAILS SECTION: engine-specific fields in a subtle box === */}
+        <EngineDetails lead={lead} engine={engine} />
+
+        {/* === SOCIAL LINKS === */}
+        {renderSocialLinks(lead)}
+
+        {/* === OUTREACH MESSAGES === */}
+        <OutreachMessages lead={lead} onLeadsUpdated={onLeadsUpdated} />
       </div>
-
-      {/* Row 2: website link */}
-      <WebsiteLink url={lead.website_url || ''} />
-
-      {/* Row 3: contact row */}
-      <ContactRow lead={lead} />
-
-      {/* Row 4: engine-specific details */}
-      <EngineDetails lead={lead} engine={engine} />
-
-      {/* Row 5: social links */}
-      {renderSocialLinks(lead)}
-
-      {/* Row 6: outreach messages */}
-      <OutreachMessages lead={lead} onLeadsUpdated={onLeadsUpdated} />
-    </div>
-  )
+    )
+  }
 
   // ============================================================
   // SMB_MAPS / COMPANIES - Local Businesses (single-column list)
@@ -2208,8 +2231,8 @@ function CreditsView({
           <h2 className="text-lg font-bold text-foreground mb-3">Buy More Credits</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {CREDIT_ADDONS.map(addon => (
-              <div key={addon.id} className="card-premium p-5 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-muted border border-border flex items-center justify-center mx-auto mb-3">
+              <div key={addon.id} className="card-premium p-5 text-center transition-all hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5">
+                <div className="w-12 h-12 rounded-2xl bg-muted border border-border flex items-center justify-center mx-auto mb-3 transition-colors group-hover:bg-primary/10">
                   <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                   </svg>
@@ -2222,7 +2245,7 @@ function CreditsView({
                 <button
                   onClick={() => onBuyCredits(addon)}
                   disabled={paymentProcessing}
-                  className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[13px] font-semibold transition-colors disabled:opacity-50"
+                  className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-[13px] font-semibold transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:hover:shadow-none"
                 >
                   {paymentProcessing ? 'Please wait...' : 'Buy Now'}
                 </button>
