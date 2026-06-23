@@ -1518,13 +1518,13 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
             </svg>
             <a href={`tel:${lead.phone}`} className="text-foreground hover:text-primary transition-colors">{lead.phone}</a>
             {showMessaging && lead.is_whatsapp && (
-              <span className="inline-flex items-center" title="On WhatsApp">
-                <WhatsAppIcon className="w-3.5 h-3.5 text-[#25D366]" />
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#25D366]/15 border border-[#25D366]/30" title="On WhatsApp">
+                <WhatsAppIcon className="w-3 h-3 text-[#25D366]" />
               </span>
             )}
             {showMessaging && lead.is_telegram && (
-              <span className="inline-flex items-center" title="On Telegram">
-                <TelegramIcon className="w-3.5 h-3.5 text-[#0088cc]" />
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#0088cc]/15 border border-[#0088cc]/30" title="On Telegram">
+                <TelegramIcon className="w-3 h-3 text-[#0088cc]" />
               </span>
             )}
           </div>
@@ -1556,27 +1556,88 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
     const items: Array<{ label: string, value: string }> = []
 
     if (engine === 'smb_maps' || engine === 'companies') {
+      // Companies engine: address, category, rating, reviews
       if (lead.address && lead.address !== 'ABSENT') items.push({ label: 'Address', value: lead.address })
       if (lead.category && lead.category !== 'ABSENT') items.push({ label: 'Category', value: lead.category })
+      if (lead.rating != null && Number(lead.rating) > 0) items.push({ label: 'Rating', value: `${Number(lead.rating).toFixed(1)} ★` })
+      if (lead.review_count != null && Number(lead.review_count) > 0) items.push({ label: 'Reviews', value: Number(lead.review_count).toLocaleString() })
     } else if (engine === 'ads_intent' || engine === 'ads_running') {
-      if (lead.ad_status && lead.ad_status !== 'ABSENT') items.push({ label: 'Ad Status', value: lead.ad_status })
+      // Ads engine: platform, status, spend
       if (lead.ad_platform && lead.ad_platform !== 'ABSENT') items.push({ label: 'Platform', value: lead.ad_platform })
+      if (lead.ad_status && lead.ad_status !== 'ABSENT') items.push({ label: 'Status', value: lead.ad_status })
       if (lead.estimated_monthly_ad_spend && lead.estimated_monthly_ad_spend !== 'ABSENT') items.push({ label: 'Est. Spend', value: lead.estimated_monthly_ad_spend })
-    } else if (engine === 'web_absent' || engine === 'ecommerce') {
+      if (lead.ad_start_date && lead.ad_start_date !== 'ABSENT') items.push({ label: 'Since', value: lead.ad_start_date })
+    } else if (engine === 'ecommerce' || engine === 'web_absent') {
+      // Ecommerce engine: platform, products, price, revenue, tech stack, store age
+      if (lead.ecommerce_platform && lead.ecommerce_platform !== 'ABSENT') items.push({ label: 'Platform', value: lead.ecommerce_platform })
+      if (lead.product_count != null && Number(lead.product_count) > 0) items.push({ label: 'Products', value: Number(lead.product_count).toLocaleString() })
+      if (lead.average_price && lead.average_price !== 'ABSENT') items.push({ label: 'Avg Price', value: lead.average_price })
+      if (lead.price_range && lead.price_range !== 'ABSENT') items.push({ label: 'Price Range', value: lead.price_range })
+      if (lead.store_currency && lead.store_currency !== 'ABSENT') items.push({ label: 'Currency', value: lead.store_currency })
+      if (lead.estimated_revenue && lead.estimated_revenue !== 'ABSENT') items.push({ label: 'Est. Revenue', value: lead.estimated_revenue })
+      if (lead.store_age_days != null && Number(lead.store_age_days) > 0) {
+        const years = Math.floor(Number(lead.store_age_days) / 365)
+        const months = Math.floor((Number(lead.store_age_days) % 365) / 30)
+        const ageStr = years > 0 ? `${years}y ${months}m` : `${months}m`
+        items.push({ label: 'Store Age', value: ageStr })
+      }
+      // Tech stack badges
+      if (lead.uses_email_marketing === true) items.push({ label: 'Email Marketing', value: 'Yes' })
+      if (lead.uses_ad_tracking === true) items.push({ label: 'Ad Tracking', value: 'Yes' })
+      if (lead.uses_subscriptions === true) items.push({ label: 'Subscriptions', value: 'Yes' })
+      if (lead.tech_stack && Array.isArray(lead.tech_stack) && lead.tech_stack.length > 0) {
+        items.push({ label: 'Tech Stack', value: lead.tech_stack.join(', ') })
+      }
+      if (lead.product_categories && Array.isArray(lead.product_categories) && lead.product_categories.length > 0) {
+        items.push({ label: 'Categories', value: lead.product_categories.slice(0, 3).join(', ') })
+      }
+      // For web_absent (old engine name) show aggregator info
       if (lead.aggregator_source && lead.aggregator_source !== 'ABSENT') items.push({ label: 'Found On', value: lead.aggregator_source })
-      if (lead.aggregator_rating != null && Number(lead.aggregator_rating) > 0) items.push({ label: 'Rating', value: `${Number(lead.aggregator_rating).toFixed(1)} stars` })
+      if (lead.aggregator_rating != null && Number(lead.aggregator_rating) > 0) items.push({ label: 'Rating', value: `${Number(lead.aggregator_rating).toFixed(1)} ★` })
     }
 
     if (items.length === 0) return null
     return (
-      <div className="flex items-center gap-3 flex-wrap text-[12px] text-muted-foreground">
+      <div className="flex items-center gap-x-4 gap-y-1.5 flex-wrap text-[12px] text-muted-foreground">
         {items.map((item, i) => (
           <span key={i} className="inline-flex items-center gap-1">
-            <span className="font-semibold uppercase tracking-wide text-[10px]">{item.label}:</span>
-            <span className="text-foreground">{item.value}</span>
+            <span className="font-semibold uppercase tracking-wide text-[10px] text-muted-foreground/80">{item.label}</span>
+            <span className="text-foreground font-medium">{item.value}</span>
           </span>
         ))}
       </div>
+    )
+  }
+
+  // ---------- Ecommerce platform badge ----------
+  const renderEcommercePlatformBadge = (platform?: string | null) => {
+    if (!platform || platform === 'ABSENT') return null
+    const p = platform.toLowerCase()
+    let bgClass = 'bg-muted text-foreground'
+    let label = platform
+    if (p.includes('shopify')) {
+      label = 'Shopify'
+      bgClass = 'bg-[#95BF47] text-white'
+    } else if (p.includes('woocommerce')) {
+      label = 'WooCommerce'
+      bgClass = 'bg-[#7F54B3] text-white'
+    } else if (p.includes('bigcommerce')) {
+      label = 'BigCommerce'
+      bgClass = 'bg-[#0D5FF5] text-white'
+    } else if (p.includes('magento')) {
+      label = 'Magento'
+      bgClass = 'bg-[#EE672F] text-white'
+    } else if (p.includes('squarespace')) {
+      label = 'Squarespace'
+      bgClass = 'bg-black text-white'
+    } else if (p.includes('wix')) {
+      label = 'Wix'
+      bgClass = 'bg-black text-white'
+    }
+    return (
+      <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase shrink-0 ${bgClass}`}>
+        {label}
+      </span>
     )
   }
 
@@ -1593,8 +1654,8 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
           <RatingDisplay rating={lead.rating} reviewCount={lead.review_count} />
           {engine === 'ads_intent' || engine === 'ads_running'
             ? renderAdPlatformBadge(lead.ad_platform)
-            : engine === 'web_absent' || engine === 'ecommerce'
-            ? renderAggregatorBadge(lead.aggregator_source)
+            : engine === 'ecommerce' || engine === 'web_absent'
+            ? renderEcommercePlatformBadge(lead.ecommerce_platform)
             : (engine as string) === 'social_intent'
             ? renderSocialPlatformBadge(lead.platform)
             : null}
