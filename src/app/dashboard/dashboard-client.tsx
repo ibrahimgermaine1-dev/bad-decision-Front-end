@@ -23,6 +23,16 @@ import { CREDIT_ADDONS, type TierId, formatAddonPrice, isEngineAvailable, getCre
 import { LocationSelector } from '@/components/location-selector'
 import { exportLeadsToCsv, downloadCsv } from '@/lib/csv-shield'
 import { ErrorBoundary } from '@/components/error-boundary'
+import {
+  DashboardSkeleton,
+  BillingViewSkeleton,
+  CollectionsViewSkeleton,
+  CreditsViewSkeleton,
+  MessagesViewSkeleton,
+  SettingsViewSkeleton,
+  LeadsSkeleton,
+  Skeleton,
+} from '@/components/ui/skeleton'
 
 type DashView = 'search' | 'collections' | 'credits' | 'billing' | 'support' | 'messages' | 'settings'
 
@@ -387,22 +397,10 @@ export function DashboardShell() {
   }
 
   // ===== LOADING STATE =====
-  // Covers three cases with one screen:
-  //   1. Clerk hasn't finished loading yet
-  //   2. User isn't signed in (we're redirecting to /sign-in — never flash the dashboard)
-  //   3. User is signed in but we haven't finished fetching their profile + balance
+  // TRUE skeleton screen — empty boxes matching the dashboard layout.
+  // This avoids flashing default content before real user data arrives.
   if (!isLoaded || !isSignedIn || !dashboardLoaded) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <svg className="animate-spin w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-          </svg>
-          <div className="text-muted-foreground text-lg">Loading your dashboard...</div>
-        </div>
-      </div>
-    )
+    return <DashboardSkeleton />
   }
 
   return (
@@ -938,18 +936,9 @@ function SearchView({
             We are finding real businesses and testing every email. This takes a few minutes.
           </p>
 
-          {/* Skeleton Lead Rows — makes the user feel something is happening */}
-          <div className="mt-4 space-y-2">
-            {[0, 1, 2].map(i => (
-              <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 pulse-row">
-                <div className="w-10 h-10 rounded-lg bg-muted flex-shrink-0" />
-                <div className="flex-1 space-y-1.5">
-                  <div className="h-3 rounded bg-muted w-1/3" />
-                  <div className="h-2.5 rounded bg-muted w-1/2" />
-                </div>
-                <div className="w-16 h-6 rounded bg-muted flex-shrink-0" />
-              </div>
-            ))}
+          {/* Skeleton Lead Rows — empty placeholders matching real card layout */}
+          <div className="mt-4">
+            <LeadsSkeleton count={4} />
           </div>
         </div>
       )}
@@ -1460,17 +1449,187 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
   const cleanUrl = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/$/, '')
 
   // ============================================================
-  // SMB_MAPS — Local Businesses
+  // SHARED LEAD CARD — clean single-column style matching the
+  // reference design. Each card has:
+  //   Row 1: bold company name + verified badge + rating + engine badge
+  //   Row 2: blue website link (primary)
+  //   Row 3: contact row — email . phone (with WhatsApp/Telegram icons)
+  //   Row 4: engine-specific details (address, ad platform, etc.)
+  //   Row 5: outreach messages accordion
   // ============================================================
-  if (engineType === 'smb_maps') {
+  const WhatsAppIcon = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+    </svg>
+  )
+  const TelegramIcon = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+      <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.139-5.061 3.345-.48.329-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+    </svg>
+  )
+
+  // ---------- Verified badge ----------
+  const VerifiedBadge = () => (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-success-soft text-success text-[10px] font-bold uppercase tracking-wide shrink-0">
+      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+      </svg>
+      Verified
+    </span>
+  )
+
+  // ---------- Rating display ----------
+  const RatingDisplay = ({ rating, reviewCount }: { rating?: number | null, reviewCount?: number | null }) => {
+    if (rating == null || Number(rating) <= 0) return null
+    return (
+      <div className="flex items-center gap-1 text-[13px] font-bold text-foreground shrink-0">
+        <svg className="w-4 h-4 text-warning" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+        {Number(rating).toFixed(1)}
+        {reviewCount != null && Number(reviewCount) > 0 && (
+          <span className="text-[11px] font-normal text-muted-foreground ml-0.5">
+            ({Number(reviewCount).toLocaleString()})
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  // ---------- Contact row - email + phone with WhatsApp/Telegram icons ----------
+  const ContactRow = ({ lead }: { lead: Lead }) => {
+    const hasEmail = lead.verified_email && lead.verified_email !== 'ABSENT'
+    const hasPhone = lead.phone && lead.phone !== 'ABSENT'
+    if (!hasEmail && !hasPhone) return null
+    return (
+      <div className="flex items-center gap-3 flex-wrap text-[13px]">
+        {hasEmail && (
+          <div className="flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 text-success shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            <span className="text-foreground truncate max-w-[260px]">{lead.verified_email}</span>
+          </div>
+        )}
+        {hasPhone && (
+          <div className="flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+            </svg>
+            <a href={`tel:${lead.phone}`} className="text-foreground hover:text-primary transition-colors">{lead.phone}</a>
+            {showMessaging && lead.is_whatsapp && (
+              <span className="inline-flex items-center" title="On WhatsApp">
+                <WhatsAppIcon className="w-3.5 h-3.5 text-[#25D366]" />
+              </span>
+            )}
+            {showMessaging && lead.is_telegram && (
+              <span className="inline-flex items-center" title="On Telegram">
+                <TelegramIcon className="w-3.5 h-3.5 text-[#0088cc]" />
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ---------- Website link (primary visual element) ----------
+  const WebsiteLink = ({ url }: { url: string }) => {
+    if (!url || url === 'ABSENT') return null
+    return (
+      <a
+        href={normalizeUrl(url)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 text-[14px] text-primary hover:text-primary/80 transition-colors truncate"
+      >
+        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+        </svg>
+        {cleanUrl(url)}
+      </a>
+    )
+  }
+
+  // ---------- Engine-specific details row ----------
+  const EngineDetails = ({ lead, engine }: { lead: Lead, engine: EngineType | null }) => {
+    const items: Array<{ label: string, value: string }> = []
+
+    if (engine === 'smb_maps' || engine === 'companies') {
+      if (lead.address && lead.address !== 'ABSENT') items.push({ label: 'Address', value: lead.address })
+      if (lead.category && lead.category !== 'ABSENT') items.push({ label: 'Category', value: lead.category })
+    } else if (engine === 'ads_intent' || engine === 'ads_running') {
+      if (lead.ad_status && lead.ad_status !== 'ABSENT') items.push({ label: 'Ad Status', value: lead.ad_status })
+      if (lead.ad_platform && lead.ad_platform !== 'ABSENT') items.push({ label: 'Platform', value: lead.ad_platform })
+      if (lead.estimated_monthly_ad_spend && lead.estimated_monthly_ad_spend !== 'ABSENT') items.push({ label: 'Est. Spend', value: lead.estimated_monthly_ad_spend })
+    } else if (engine === 'web_absent' || engine === 'ecommerce') {
+      if (lead.aggregator_source && lead.aggregator_source !== 'ABSENT') items.push({ label: 'Found On', value: lead.aggregator_source })
+      if (lead.aggregator_rating != null && Number(lead.aggregator_rating) > 0) items.push({ label: 'Rating', value: `${Number(lead.aggregator_rating).toFixed(1)} stars` })
+    }
+
+    if (items.length === 0) return null
+    return (
+      <div className="flex items-center gap-3 flex-wrap text-[12px] text-muted-foreground">
+        {items.map((item, i) => (
+          <span key={i} className="inline-flex items-center gap-1">
+            <span className="font-semibold uppercase tracking-wide text-[10px]">{item.label}:</span>
+            <span className="text-foreground">{item.value}</span>
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  // ---------- Shared LeadCard component ----------
+  const LeadCard = ({ lead, engine }: { lead: Lead, engine: EngineType | null }) => (
+    <div className="card-premium p-5 space-y-2.5">
+      {/* Row 1: company name + badges */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <h3 className="font-bold text-[16px] text-foreground truncate flex-1 min-w-0">
+          {lead.company_name || lead.author_username || 'Unknown'}
+        </h3>
+        <div className="flex items-center gap-2 shrink-0">
+          {lead.validation_gates_passed && lead.validation_gates_passed >= 2 && <VerifiedBadge />}
+          <RatingDisplay rating={lead.rating} reviewCount={lead.review_count} />
+          {engine === 'ads_intent' || engine === 'ads_running'
+            ? renderAdPlatformBadge(lead.ad_platform)
+            : engine === 'web_absent' || engine === 'ecommerce'
+            ? renderAggregatorBadge(lead.aggregator_source)
+            : (engine as string) === 'social_intent'
+            ? renderSocialPlatformBadge(lead.platform)
+            : null}
+        </div>
+      </div>
+
+      {/* Row 2: website link */}
+      <WebsiteLink url={lead.website_url || ''} />
+
+      {/* Row 3: contact row */}
+      <ContactRow lead={lead} />
+
+      {/* Row 4: engine-specific details */}
+      <EngineDetails lead={lead} engine={engine} />
+
+      {/* Row 5: social links */}
+      {renderSocialLinks(lead)}
+
+      {/* Row 6: outreach messages */}
+      <OutreachMessages lead={lead} />
+    </div>
+  )
+
+  // ============================================================
+  // SMB_MAPS / COMPANIES - Local Businesses (single-column list)
+  // ============================================================
+  if (engineType === 'smb_maps' || engineType === 'companies') {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h2 className="text-xl font-bold text-foreground">
-              {leads.length} local {leads.length === 1 ? 'business' : 'businesses'} found
+              {leads.length} verified {leads.length === 1 ? 'lead' : 'leads'} found
             </h2>
-            <p className="text-[13px] text-muted-foreground">Shops, clinics, and offices ready to contact.</p>
+            <p className="text-[13px] text-muted-foreground">Every email has been tested. Send your pitch with confidence.</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {renderExportBtn()}
@@ -1484,82 +1643,9 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
           { value: 'name', label: 'Name (A-Z)' },
           { value: 'email', label: 'Has Email' },
         ])}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-3">
           {sortedLeads.map((lead, i) => (
-            <div key={i} className="card-premium p-4 sm:p-5">
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-bold text-[15px] text-foreground truncate">{lead.company_name}</h3>
-                  {lead.category && lead.category !== 'ABSENT' && (
-                    <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-violet-soft text-primary text-[10px] font-bold uppercase tracking-wide">
-                      {lead.category}
-                    </span>
-                  )}
-                </div>
-                {lead.rating != null && Number(lead.rating) > 0 && (
-                  <div className="flex items-center gap-1 text-[13px] font-bold text-foreground shrink-0">
-                    <svg className="w-4 h-4 text-warning" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                    {Number(lead.rating).toFixed(1)}
-                    {lead.review_count != null && Number(lead.review_count) > 0 && (
-                      <span className="text-[11px] font-normal text-muted-foreground ml-1">
-                        ({Number(lead.review_count).toLocaleString()})
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2 mt-2">
-                {lead.address && lead.address !== 'ABSENT' && (
-                  <div className="flex items-start gap-2 text-[13px]">
-                    <svg className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span className="text-foreground">{lead.address}</span>
-                  </div>
-                )}
-                {lead.phone && lead.phone !== 'ABSENT' && (
-                  <div className="flex items-center gap-2 text-[13px]">
-                    <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                    <a href={`tel:${lead.phone}`} className="text-foreground hover:text-primary transition-colors">{lead.phone}</a>
-                    {showMessaging && lead.is_whatsapp && (
-                      <svg className="w-3.5 h-3.5 text-[#25D366] shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                      </svg>
-                    )}
-                    {showMessaging && lead.is_telegram && (
-                      <svg className="w-3.5 h-3.5 text-[#0088cc] shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.139-5.061 3.345-.48.329-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
-                      </svg>
-                    )}
-                  </div>
-                )}
-                {lead.website_url && lead.website_url !== 'ABSENT' && (
-                  <div className="flex items-center gap-2 text-[13px]">
-                    <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                    </svg>
-                    <a href={normalizeUrl(lead.website_url)} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors truncate">
-                      {cleanUrl(lead.website_url)}
-                    </a>
-                  </div>
-                )}
-                {lead.verified_email && lead.verified_email !== 'ABSENT' && (
-                  <div className="flex items-center gap-2 text-[13px]">
-                    <svg className="w-3.5 h-3.5 text-success shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-foreground truncate">{lead.verified_email}</span>
-                    <span className="text-[10px] font-bold uppercase text-success">Verified</span>
-                  </div>
-                )}
-              </div>
-              {renderSocialLinks(lead)}
-              <OutreachMessages lead={lead} />
-            </div>
+            <LeadCard key={i} lead={lead} engine={engineType} />
           ))}
         </div>
       </div>
@@ -1567,9 +1653,9 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
   }
 
   // ============================================================
-  // ADS_INTENT — Ads Intelligence
+  // ADS_RUNNING / ADS_INTENT - Ads Intelligence
   // ============================================================
-  if (engineType === 'ads_intent') {
+  if (engineType === 'ads_intent' || engineType === 'ads_running') {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1591,88 +1677,19 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
           { value: 'name', label: 'Name (A-Z)' },
           { value: 'email', label: 'Has Email' },
         ])}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {sortedLeads.map((lead, i) => {
-            const isActive = (lead.ad_status || '').toLowerCase() === 'active'
-            return (
-              <div key={i} className="card-premium p-4 sm:p-5">
-                <div className="flex items-start justify-between gap-2 mb-2 flex-wrap">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-bold text-[15px] text-foreground truncate">{lead.company_name}</h3>
-                  </div>
-                  {renderAdPlatformBadge(lead.ad_platform)}
-                </div>
-                {lead.ad_status && lead.ad_status !== 'ABSENT' && (
-                  <div className="flex items-center gap-1.5 mb-3">
-                    <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-success' : 'bg-muted-foreground'}`} />
-                    <span className={`text-[12px] font-semibold ${isActive ? 'text-success' : 'text-muted-foreground'}`}>
-                      {lead.ad_status}
-                    </span>
-                  </div>
-                )}
-                <div className="space-y-2">
-                  {lead.website_url && lead.website_url !== 'ABSENT' && (
-                    <div className="flex items-center gap-2 text-[13px]">
-                      <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                      </svg>
-                      <a href={normalizeUrl(lead.website_url)} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors truncate">
-                        {cleanUrl(lead.website_url)}
-                      </a>
-                    </div>
-                  )}
-                  {lead.verified_email && lead.verified_email !== 'ABSENT' && (
-                    <div className="flex items-center gap-2 text-[13px]">
-                      <svg className="w-3.5 h-3.5 text-success shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="text-foreground truncate">{lead.verified_email}</span>
-                    </div>
-                  )}
-                  {lead.phone && lead.phone !== 'ABSENT' && (
-                    <div className="flex items-center gap-2 text-[13px]">
-                      <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                      </svg>
-                      <a href={`tel:${lead.phone}`} className="text-foreground hover:text-primary transition-colors">{lead.phone}</a>
-                    {showMessaging && lead.is_whatsapp && (
-                      <svg className="w-3.5 h-3.5 text-[#25D366] shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                      </svg>
-                    )}
-                    {showMessaging && lead.is_telegram && (
-                      <svg className="w-3.5 h-3.5 text-[#0088cc] shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.139-5.061 3.345-.48.329-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
-                      </svg>
-                    )}
-                    </div>
-                  )}
-                  {lead.dm_name && lead.dm_name !== 'ABSENT' && (
-                    <div className="flex items-center gap-2 text-[13px]">
-                      <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      <span className="text-foreground">{lead.dm_name}</span>
-                      {lead.dm_position && lead.dm_position !== 'ABSENT' && (
-                        <span className="text-muted-foreground">· {lead.dm_position}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {renderSocialLinks(lead)}
-              <OutreachMessages lead={lead} />
-              </div>
-            )
-          })}
+        <div className="space-y-3">
+          {sortedLeads.map((lead, i) => (
+            <LeadCard key={i} lead={lead} engine={engineType} />
+          ))}
         </div>
       </div>
     )
   }
 
   // ============================================================
-  // WEB_ABSENT — Businesses Without Websites
+  // WEB_ABSENT / ECOMMERCE - Businesses on aggregators
   // ============================================================
-  if (engineType === 'web_absent') {
+  if (engineType === 'web_absent' || engineType === 'ecommerce') {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1680,7 +1697,7 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
             <h2 className="text-xl font-bold text-foreground">
               {leads.length} {leads.length === 1 ? 'business' : 'businesses'} that need a website found
             </h2>
-            <p className="text-[13px] text-muted-foreground">Listed on aggregators but missing a website — easy wins.</p>
+            <p className="text-[13px] text-muted-foreground">Listed on aggregators but missing a website - easy wins.</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {renderExportBtn()}
@@ -1694,70 +1711,9 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
           { value: 'name', label: 'Name (A-Z)' },
           { value: 'phone', label: 'Has Phone' },
         ])}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-3">
           {sortedLeads.map((lead, i) => (
-            <div key={i} className="card-premium p-4 sm:p-5">
-              <div className="flex items-start justify-between gap-2 mb-3 flex-wrap">
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-bold text-[15px] text-foreground truncate">{lead.company_name}</h3>
-                </div>
-                <span className="px-2.5 py-1 rounded-md bg-danger-soft text-danger text-[10px] font-bold uppercase shrink-0">
-                  No Website
-                </span>
-              </div>
-              <div className="flex items-center gap-2 mb-3 flex-wrap">
-                {renderAggregatorBadge(lead.aggregator_source)}
-                {lead.aggregator_rating != null && Number(lead.aggregator_rating) > 0 && (
-                  <div className="flex items-center gap-1 text-[12px] font-bold text-foreground">
-                    <svg className="w-3.5 h-3.5 text-warning" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                    {Number(lead.aggregator_rating).toFixed(1)}
-                  </div>
-                )}
-                <span className="px-2 py-0.5 rounded-md bg-success-soft text-success text-[10px] font-bold uppercase">
-                  Needs Website
-                </span>
-              </div>
-              <div className="space-y-2">
-                {lead.aggregator_url && lead.aggregator_url !== 'ABSENT' && (
-                  <div className="flex items-center gap-2 text-[13px]">
-                    <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                    <a href={normalizeUrl(lead.aggregator_url)} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors truncate">
-                      View aggregator profile
-                    </a>
-                  </div>
-                )}
-                {lead.phone && lead.phone !== 'ABSENT' && (
-                  <div className="flex items-center gap-2 text-[13px]">
-                    <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                    <a href={`tel:${lead.phone}`} className="text-foreground hover:text-primary transition-colors">{lead.phone}</a>
-                    {showMessaging && lead.is_whatsapp && (
-                      <svg className="w-3.5 h-3.5 text-[#25D366] shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                      </svg>
-                    )}
-                    {showMessaging && lead.is_telegram && (
-                      <svg className="w-3.5 h-3.5 text-[#0088cc] shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.139-5.061 3.345-.48.329-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
-                      </svg>
-                    )}
-                  </div>
-                )}
-                {lead.address && lead.address !== 'ABSENT' && (
-                  <div className="flex items-start gap-2 text-[13px]">
-                    <svg className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span className="text-foreground">{lead.address}</span>
-                  </div>
-                )}
-              </div>
-            </div>
+            <LeadCard key={i} lead={lead} engine={engineType} />
           ))}
         </div>
       </div>
@@ -1765,9 +1721,9 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
   }
 
   // ============================================================
-  // SOCIAL_INTENT — Social Radar
+  // SOCIAL_INTENT - Social Radar
   // ============================================================
-  if ((engineType as string) === 'social_intent') {
+  if ((engineType as unknown as string) === 'social_intent') {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1788,52 +1744,10 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
           { value: 'intent', label: 'Intent Level' },
           { value: 'platform', label: 'Platform' },
         ])}
-        <div className="grid grid-cols-1 gap-3">
-          {sortedLeads.map((lead, i) => {
-            const isHigh = (lead.intent_level || '').toLowerCase() === 'high'
-            return (
-              <div key={i} className="card-premium p-4 sm:p-5">
-                <div className="flex items-start justify-between gap-2 mb-2 flex-wrap">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-bold text-[15px] text-foreground truncate">
-                      {lead.author_username || lead.company_name || 'Anonymous'}
-                    </h3>
-                  </div>
-                  {renderSocialPlatformBadge(lead.platform)}
-                </div>
-                {lead.intent_text && lead.intent_text !== 'ABSENT' && (
-                  <div className="my-3 pl-3 border-l-2 border-primary/40">
-                    <p className="text-[14px] italic text-foreground leading-relaxed">
-                      &ldquo;{lead.intent_text}&rdquo;
-                    </p>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {lead.intent_level && lead.intent_level !== 'ABSENT' && (
-                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase ${intentBadgeClass(lead.intent_level)}`}>
-                      {lead.intent_level} Intent
-                    </span>
-                  )}
-                  {isHigh && (
-                    <span className="px-2.5 py-1 rounded-md bg-success-soft text-success text-[10px] font-bold uppercase">
-                      Ready to Buy
-                    </span>
-                  )}
-                </div>
-                {lead.post_url && lead.post_url !== 'ABSENT' && (
-                  <div className="flex items-center gap-2 mt-3 text-[13px]">
-                    <svg className="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                    <a href={normalizeUrl(lead.post_url)} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors truncate">
-                      View original post
-                    </a>
-                  </div>
-                )}
-                              <OutreachMessages lead={lead} />
-              </div>
-            )
-          })}
+        <div className="space-y-3">
+          {sortedLeads.map((lead, i) => (
+            <LeadCard key={i} lead={lead} engine={engineType} />
+          ))}
         </div>
       </div>
     )
@@ -1858,16 +1772,9 @@ function ResultsView({ leads, engineType, taskId, onLeadsUpdated }: { leads: Lea
           {renderBatchModal()}
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3">
+      <div className="space-y-3">
         {sortedLeads.map((lead, i) => (
-          <div key={i} className="card-premium p-4 sm:p-5">
-            <h3 className="font-bold text-[15px] text-foreground mb-1 truncate">{lead.company_name}</h3>
-            {lead.website_url && lead.website_url !== 'ABSENT' && (
-              <a href={normalizeUrl(lead.website_url)} target="_blank" rel="noopener noreferrer" className="text-[13px] text-primary hover:text-primary/80 transition-colors">
-                {cleanUrl(lead.website_url)}
-              </a>
-            )}
-          </div>
+          <LeadCard key={i} lead={lead} engine={engineType} />
         ))}
       </div>
     </div>
@@ -2020,13 +1927,7 @@ function CollectionsView({ collections }: { collections: SmartCollection[] }) {
         </div>
 
         {detailLoading && (
-          <div className="card-premium p-8 flex flex-col items-center justify-center gap-3">
-            <svg className="animate-spin w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-            </svg>
-            <p className="text-[14px] text-muted-foreground">Loading your leads...</p>
-          </div>
+          <LeadsSkeleton count={6} />
         )}
 
         {!detailLoading && detailError && (
@@ -2354,13 +2255,7 @@ function BillingView({ tier, onTierChange }: { tier: string; onTierChange: () =>
 
   if (loading) {
     return (
-      <div className="card-premium p-8 flex flex-col items-center justify-center gap-3">
-        <svg className="animate-spin w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-        </svg>
-        <p className="text-[14px] text-muted-foreground">Loading your billing information...</p>
-      </div>
+      <BillingViewSkeleton />
     )
   }
 
@@ -2649,13 +2544,7 @@ function OutreachSettingsForm({ onSaved }: { onSaved?: () => void }) {
 
   if (loading) {
     return (
-      <div className="card-premium p-8 flex flex-col items-center justify-center gap-3">
-        <svg className="animate-spin w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-        </svg>
-        <p className="text-[14px] text-muted-foreground">Loading your outreach settings...</p>
-      </div>
+      <SettingsViewSkeleton />
     )
   }
 
