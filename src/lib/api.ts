@@ -167,7 +167,7 @@ export async function fetchCollections(userId: string): Promise<SmartCollection[
 export async function pollUntilComplete(
   taskId: string,
   onProgress?: (status: TaskStatusResponse) => void,
-  maxAttempts = 80,
+  maxAttempts = 100,
   intervalMs = 2500,
 ): Promise<TaskStatusResponse> {
   for (let i = 0; i < maxAttempts; i++) {
@@ -181,5 +181,7 @@ export async function pollUntilComplete(
     await new Promise(resolve => setTimeout(resolve, intervalMs))
   }
 
-  throw new Error('Search timed out. Please try again.')
+  // After ~4 minutes of polling, throw with a helpful message.
+  // The backend's stale task recovery will also fail the task and refund credits.
+  throw new Error('Search is taking longer than expected. The server may have restarted. Your credits will be refunded automatically — please try again in a moment.')
 }
